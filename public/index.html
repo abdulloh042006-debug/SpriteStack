@@ -4499,14 +4499,14 @@ function renderWorld() {
       const p = S[i % M];
       ctx.lineTo(p.x, p.y);
     }
-    ctx.strokeStyle = \`rgba(15, 23, 42, \${alpha})\`;
+    ctx.strokeStyle = `rgba(15, 23, 42, ${alpha})`;
     ctx.lineWidth = halfW * 2 + 34;
     ctx.lineCap = 'butt';
     ctx.stroke();
 
     // Ceiling ribs and warm guide lights.
     ctx.setLineDash([10, 34]);
-    ctx.strokeStyle = \`rgba(251, 191, 36, \${alpha * 0.9})\`;
+    ctx.strokeStyle = `rgba(251, 191, 36, ${alpha * 0.9})`;
     ctx.lineWidth = 4;
     ctx.stroke();
     ctx.setLineDash([]);
