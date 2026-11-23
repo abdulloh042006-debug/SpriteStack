@@ -1,0 +1,34 @@
+name: Keep SpriteStack Render Server Alive
+
+on:
+  schedule:
+    # Runs at minutes 00, 14, 28, 42 and 56 of every hour.
+    # The largest gap is 14 minutes, below Render Free's 15-minute idle window.
+    - cron: "*/14 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spritestack-render-keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Send lightweight health request
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping Render health endpoint
+        env:
+          HEALTH_URL: https://spritestack-poyga-server-lb2i.onrender.com/api/info
+        run: |
+          set -euo pipefail
+          echo "Pinging SpriteStack Render server..."
+          response="$(curl --fail --silent --show-error \
+            --retry 2 --retry-delay 5 --retry-connrefused \
+            --max-time 30 "$HEALTH_URL")"
+          echo "$response"
+          echo "$response" | jq -e '.ok == true' >/dev/null
+          echo "Render health endpoint returned ok=true."
