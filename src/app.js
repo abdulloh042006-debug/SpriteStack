@@ -239,6 +239,14 @@ const pctx = previewCanvas.getContext('2d');
 
 const keys = { up: false, down: false, left: false, right: false, drift: false, nitro: false };
 
+function isTouchDevice() {
+  return ('ontouchstart' in window) ||
+    Number(navigator.maxTouchPoints || 0) > 0 ||
+    (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches);
+}
+
+document.documentElement.classList.toggle('touch-device', isTouchDevice());
+
 const DEFAULT_MULTIPLAYER_SERVER = 'wss://spritestack-poyga-server-lb2i.onrender.com';
 
 const state = {
@@ -252,7 +260,7 @@ const state = {
   garageSearch: '',
   garageSort: 'level',
   explodePreview: false,
-  touchVisible: ('ontouchstart' in window) || navigator.maxTouchPoints > 0,
+  touchVisible: isTouchDevice(),
   raceConfig: { laps: 2, weather: 'clear', weatherPhysics: false, raceMode: 'classic', botCount: 3, isMultiplayer: false, raceTime: 0, active: false },
   track: null,
   cars: [],
@@ -722,9 +730,10 @@ function startRace(mpStartData = null) {
   document.getElementById('results-screen').classList.remove('active');
   document.getElementById('hud').classList.add('active');
   document.getElementById('hud-stage').textContent = trackDef.name;
-  updateTouchVisibility();
 
+  // Set game mode before evaluating touch-control visibility.
   state.mode = 'countdown';
+  updateTouchVisibility();
 }
 
 function getStandings() {
@@ -1633,7 +1642,9 @@ function joinRoomByCode() {
 
 function updateTouchVisibility() {
   const tc = document.getElementById('touch-controls');
-  tc.classList.toggle('visible', state.touchVisible && (state.mode === 'racing' || state.mode === 'countdown'));
+  const visible = state.touchVisible && (state.mode === 'racing' || state.mode === 'countdown');
+  tc.classList.toggle('visible', visible);
+  tc.setAttribute('aria-hidden', String(!visible));
 }
 
 function togglePause() {
@@ -1656,6 +1667,7 @@ function returnToMenu() {
   document.getElementById('pause-screen').classList.remove('active');
   document.getElementById('results-screen').classList.remove('active');
   document.getElementById('touch-controls').classList.remove('visible');
+  document.getElementById('touch-controls').setAttribute('aria-hidden', 'true');
   document.getElementById('menu-screen').classList.add('active');
   document.getElementById('center-banner').innerHTML = '';
   sfx.updateEngine(0, false, false, false, false);
@@ -1782,8 +1794,14 @@ function initUI() {
   document.getElementById('btn-touch-toggle').addEventListener('click', () => { state.touchVisible = !state.touchVisible; updateTouchVisibility(); });
   document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreenLandscape);
   document.getElementById('btn-menu-fullscreen').addEventListener('click', toggleFullscreenLandscape);
-  document.addEventListener('fullscreenchange', () => setTimeout(resizeCanvas, 100));
-  window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 150));
+  document.addEventListener('fullscreenchange', () => setTimeout(() => {
+    resizeCanvas();
+    updateTouchVisibility();
+  }, 120));
+  window.addEventListener('orientationchange', () => setTimeout(() => {
+    resizeCanvas();
+    updateTouchVisibility();
+  }, 180));
 
   // Profile actions
   document.getElementById('btn-rand-nick').addEventListener('click', () => {
@@ -1894,10 +1912,22 @@ function initUI() {
 
   const bindTouch = (id, keyName) => {
     const el = document.getElementById(id);
-    const down = (e) => { e.preventDefault(); keys[keyName] = true; el.classList.add('pressed'); };
-    const up = (e) => { e.preventDefault(); keys[keyName] = false; el.classList.remove('pressed'); };
-    el.addEventListener('pointerdown', down); el.addEventListener('pointerup', up);
-    el.addEventListener('pointerleave', up); el.addEventListener('pointercancel', up);
+    const down = (e) => {
+      e.preventDefault();
+      keys[keyName] = true;
+      el.classList.add('pressed');
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    };
+    const up = (e) => {
+      if (e) e.preventDefault();
+      keys[keyName] = false;
+      el.classList.remove('pressed');
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('lostpointercapture', up);
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
   };
   bindTouch('tc-left', 'left'); bindTouch('tc-right', 'right');
   bindTouch('tc-gas', 'up'); bindTouch('tc-brake', 'down');
@@ -1925,7 +1955,10 @@ function resizeCanvas() {
   canvas.height = wrap.clientHeight;
 }
 
-window.addEventListener('resize', resizeCanvas);
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  updateTouchVisibility();
+});
 window.addEventListener('load', () => {
   resizeCanvas();
   initUI();
