@@ -27,6 +27,18 @@ jobs:
       - name: Install Capacitor dependencies
         run: npm install
 
+      - name: Verify browser JavaScript syntax
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const html = fs.readFileSync('public/index.html', 'utf8');
+          const match = html.match(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/i);
+          if (!match) throw new Error('Inline browser app script was not found');
+          new vm.Script(match[1], { filename: 'public/index.html' });
+          console.log('Browser bundle syntax: PASS');
+          NODE
+
       - name: Verify game tests
         run: node tests/run_tests.mjs
 
