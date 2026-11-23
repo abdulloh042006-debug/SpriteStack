@@ -22,6 +22,7 @@ import {
 import {
   buildTrackGeometry, updateDecorEnvironments, createPhysicsCar, updateCarPhysics
 } from '../src/engine/physics.js';
+import { generateCarSlices } from '../src/engine/spriteStacker.js';
 import { createMultiplayerServer } from '../server/index.js';
 
 let passed = 0;
@@ -399,6 +400,53 @@ async function runAll() {
     const found = getVehicleById(sample.id);
     assert.equal(found.id, sample.id, "getVehicleById must resolve world vehicles");
     assert.ok(found.realSpecs.sourceUrl, "Every world vehicle must keep sourceUrl");
+  });
+
+  await test("11b. World catalog produces model-specific visual DNA and renderable silhouettes", () => {
+    assert.ok(WORLD_VEHICLES.every(v => v.visualProfile && v.visualProfile.shape), "Every world vehicle needs a visual profile");
+    const signatures = new Set(WORLD_VEHICLES.map(v => {
+      const p = v.visualProfile;
+      return [
+        p.shape, p.grille, p.lights, p.rear, p.bodyWidth,
+        p.frontTaper, p.rearTaper, p.cabinFront, p.cabinRear,
+        p.cabinWidth, p.frontAxle, p.rearAxle
+      ].join('|');
+    }));
+    const grilleKinds = new Set(WORLD_VEHICLES.map(v => v.visualProfile.grille));
+    assert.ok(signatures.size > 100, "World catalog should produce hundreds of distinct model profiles");
+    assert.ok(grilleKinds.size >= 5, "Manufacturer identities should create several grille signatures");
+    for (const v of WORLD_VEHICLES) {
+      assert.ok(v.visualProfile.bodyWidth >= 12 && v.visualProfile.bodyWidth <= 16, "Invalid body width on " + v.id);
+    }
+
+    const previousDocument = globalThis.document;
+    const createMockCanvas = () => {
+      const operations = [];
+      const context = {
+        fillStyle: '#000000',
+        imageSmoothingEnabled: false,
+        fillRect(x, y, w, h) { operations.push([x, y, w, h, this.fillStyle]); }
+      };
+      return { width: 0, height: 0, operations, getContext: () => context };
+    };
+    globalThis.document = { createElement: tag => {
+      assert.equal(tag, 'canvas');
+      return createMockCanvas();
+    }};
+    try {
+      const targetShapes = ['boxy_sedan', 'suv', 'mini_pickup', 'long_sedan', 'gtr_coupe'];
+      const samples = targetShapes.map(shape => VEHICLES.find(v => v.visualProfile?.shape === shape)).filter(Boolean);
+      assert.ok(samples.length >= 4, 'Need multiple body families for sprite regression coverage');
+      const rendered = samples.map(car => {
+        const layers = generateCarSlices(car, 'white');
+        assert.equal(layers.length, 15, 'Every vehicle must preserve 15 sprite layers');
+        return layers.map(layer => layer.operations.map(op => op.join(',')).join(';')).join('||');
+      });
+      assert.equal(new Set(rendered).size, rendered.length, 'Different body families must not render as identical sprites');
+    } finally {
+      if (previousDocument === undefined) delete globalThis.document;
+      else globalThis.document = previousDocument;
+    }
   });
 
   // TEST 12: Paid Performance Tuning System (PR & Real Physics Boost)
