@@ -494,6 +494,22 @@ function renderWorld() {
         ctx.fill();
         ctx.restore();
       }
+      ctx.save();
+      ctx.translate(car.x, car.y - car.z);
+      ctx.rotate(car.angle);
+      const headAlpha = isNight || car.inTunnel ? 0.34 : 0.12;
+      const beam = ctx.createLinearGradient(14,0,110,0);
+      beam.addColorStop(0, `rgba(254,240,138,${headAlpha})`);
+      beam.addColorStop(1,'rgba(254,240,138,0)');
+      ctx.fillStyle=beam;ctx.beginPath();ctx.moveTo(14,-10);ctx.lineTo(110,-34);ctx.lineTo(110,34);ctx.lineTo(14,10);ctx.closePath();ctx.fill();
+      if(car.nitroActive){
+        const flame=16+Math.random()*10;
+        const fg=ctx.createLinearGradient(-16,0,-16-flame,0);
+        fg.addColorStop(0,'#fff');fg.addColorStop(.35,'#facc15');fg.addColorStop(.75,'#f97316');fg.addColorStop(1,'rgba(239,68,68,0)');
+        ctx.fillStyle=fg;
+        for(const ey of [-6,6]){ctx.beginPath();ctx.moveTo(-16,ey-3);ctx.lineTo(-16-flame,ey);ctx.lineTo(-16,ey+3);ctx.closePath();ctx.fill();}
+      }
+      ctx.restore();
       const neon = car.isPlayer ? profile.tuning.neon : 'none';
       drawSpriteStack(ctx, car.slices, car.x, car.y, car.angle, 1.85, 1.55, 0.42, car.z, neon);
 
@@ -597,10 +613,15 @@ function renderMinimap() {
 
   for (const car of state.cars) {
     if (car.eliminated) continue;
-    mctx.fillStyle = car.isPlayer ? '#ef233c' : (car.isRemote ? '#fbbf24' : '#38bdf8');
-    mctx.beginPath();
-    mctx.arc(car.x * scale + ox, car.y * scale + oy, car.isPlayer ? 3.8 : 2.5, 0, Math.PI * 2);
-    mctx.fill();
+    if (car.isPlayer) {
+      mctx.save(); mctx.shadowColor='#ff2a4b'; mctx.shadowBlur=10;
+      mctx.fillStyle='#ff2a4b';mctx.strokeStyle='#fff';mctx.lineWidth=1.6;
+      mctx.beginPath();mctx.arc(car.x*scale+ox,car.y*scale+oy,4.4,0,Math.PI*2);
+      mctx.fill();mctx.stroke();mctx.restore();
+    } else {
+      mctx.fillStyle = car.isRemote ? '#fbbf24' : '#38bdf8';
+      mctx.beginPath();mctx.arc(car.x*scale+ox,car.y*scale+oy,2.5,0,Math.PI*2);mctx.fill();
+    }
   }
 }
 
@@ -838,6 +859,21 @@ function renderPreviewGarage(dt) {
   previewAngle += dt * 1.1;
   const w = previewCanvas.width, h = previewCanvas.height;
   pctx.clearRect(0, 0, w, h);
+  const glow = pctx.createRadialGradient(w/2,h*.18,8,w/2,h*.62,w*.56);
+  glow.addColorStop(0,'rgba(56,189,248,.22)');
+  glow.addColorStop(.55,'rgba(255,42,75,.12)');
+  glow.addColorStop(1,'rgba(0,0,0,0)');
+  pctx.fillStyle=glow; pctx.fillRect(0,0,w,h);
+  const py=h*.72, rx=Math.min(w*.36,108), ry=rx*.32;
+  pctx.save();
+  pctx.fillStyle='rgba(0,0,0,.58)'; pctx.beginPath(); pctx.ellipse(w/2,py+7,rx*1.12,ry*1.15,0,0,Math.PI*2); pctx.fill();
+  const base=pctx.createLinearGradient(w/2-rx,py,w/2+rx,py);
+  base.addColorStop(0,'#0f172a');base.addColorStop(.5,'#1e293b');base.addColorStop(1,'#0f172a');
+  pctx.fillStyle=base;pctx.beginPath();pctx.ellipse(w/2,py,rx,ry,0,0,Math.PI*2);pctx.fill();
+  pctx.strokeStyle='#ff2a4b';pctx.lineWidth=3;pctx.shadowColor='#ff2a4b';pctx.shadowBlur=14;
+  pctx.beginPath();pctx.ellipse(w/2,py,rx,ry,0,0,Math.PI*2);pctx.stroke();
+  pctx.strokeStyle='#22d3ee';pctx.lineWidth=1.6;pctx.shadowColor='#22d3ee';pctx.shadowBlur=10;
+  pctx.beginPath();pctx.ellipse(w/2,py,rx*.76,ry*.76,0,0,Math.PI*2);pctx.stroke();pctx.restore();
   pctx.strokeStyle = 'rgba(255,255,255,0.06)';
   pctx.lineWidth = 1;
   for (let x = 0; x < w; x += 18) { pctx.beginPath(); pctx.moveTo(x, 0); pctx.lineTo(x, h); pctx.stroke(); }
@@ -848,7 +884,7 @@ function renderPreviewGarage(dt) {
   const spacing = state.explodePreview ? 7.2 : 2.4;
   const baseY = state.explodePreview ? h * 0.87 : h * 0.65;
   const scale = state.explodePreview ? 2.5 : 3.15;
-  drawSpriteStack(pctx, slices, w / 2, baseY, previewAngle, scale, spacing, 0.45, 0, profile.tuning.neon);
+  drawSpriteStack(pctx, slices, w / 2, state.explodePreview ? baseY : Math.min(baseY, py - 5), previewAngle, scale, spacing, 0.45, 0, profile.tuning.neon);
 }
 
 function tick(ts) {
@@ -993,6 +1029,8 @@ function tick(ts) {
         document.getElementById('hud-air-tag').textContent = player.airborne ? '✈️ HAVODA' : (player.inTunnel ? '🚇 TUNNEL' : 'KM/SOAT');
         document.getElementById('hud-nitro-pct').textContent = `${Math.round(player.nitro)}%`;
         document.getElementById('hud-nitro-bar').style.width = `${player.nitro}%`;
+        const speedBox = document.querySelector('.speed-box');
+        if (speedBox) speedBox.classList.toggle('nitro-firing', Boolean(player.nitroActive));
       }
       sfx.updateEngine(Math.min(1, player.speed / player.maxSpeed), player.drifting && !player.onGrass, player.nitroActive, player.inTunnel, state.mode === 'racing');
     }
