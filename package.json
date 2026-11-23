@@ -1,0 +1,19 @@
+{
+  "name": "spritestack-poyga",
+  "version": "2.1.0",
+  "description": "SpriteStack Poyga — 2.5D Pixel-Art Racing Game (31,608 World Vehicles + Paid Tuning + LAN/Online Multiplayer)",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node tests/run_tests.mjs",
+    "build": "python3 build.py"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  }
+}

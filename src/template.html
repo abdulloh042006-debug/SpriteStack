@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SpriteStack Poyga 2.0 — O'zbekiston Avto Tarixi & 2.5D Multiplayer</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: rgba(15, 20, 30, 0.94);
+    --card: rgba(255, 255, 255, 0.04);
+    --border: rgba(255, 255, 255, 0.11);
+    --accent: #ef233c;
+    --accent-glow: rgba(239, 35, 60, 0.42);
+    --gold: #fbbf24;
+    --emerald: #10b981;
+    --sky: #38bdf8;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  input, select { user-select: text; -webkit-user-select: text; }
+  button { touch-action: manipulation; }
+
+  #game-wrap { position: relative; width: 100%; height: 100%; overflow: hidden; background: #141c13; }
+  #game-canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+  /* HUD */
+  #hud { position: absolute; inset: 0; pointer-events: none; display: none; flex-direction: column; justify-content: space-between; padding: 10px; z-index: 10; }
+  #hud.active { display: flex; }
+  .hud-top, .hud-bottom { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .hud-bottom { align-items: flex-end; }
+  .hud-cluster { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .hud-pill { background: rgba(11, 15, 23, 0.84); border: 1px solid rgba(255,255,255,0.14);  border-radius: 11px; padding: 6px 10px; min-width: 68px; }
+  .hud-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 700; display: block; }
+  .hud-val { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff; }
+  .hud-val.pos-1 { color: #fbbf24; }
+  .hud-val.pos-2 { color: #e2e8f0; }
+  .hud-val.pos-3 { color: #fb923c; }
+  .hud-actions { display: flex; gap: 6px; pointer-events: auto; flex-wrap: wrap; }
+
+  .icon-btn { background: rgba(12, 17, 26, 0.88); border: 1px solid rgba(255,255,255,0.16); color: #fff; border-radius: 9px; height: 34px; padding: 0 10px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+  .icon-btn:hover { background: rgba(30, 41, 59, 0.95); border-color: rgba(255,255,255,0.34); }
+  .icon-btn.active { background: rgba(239, 35, 60, 0.85); border-color: #fda4af; }
+
+  .speed-box { background: rgba(11, 15, 23, 0.86); border: 1px solid rgba(255,255,255,0.14);  border-radius: 13px; padding: 8px 12px; min-width: 170px; }
+  .speed-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .speed-num { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .speed-unit { font-size: 10px; color: var(--muted); font-weight: 700; }
+  .nitro-head { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 700; color: var(--sky); margin: 4px 0 3px; }
+  .nitro-bar-bg { width: 100%; height: 7px; background: rgba(255,255,255,0.12); border-radius: 99px; overflow: hidden; }
+  .nitro-bar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #0ea5e9, #38bdf8, #facc15); transition: width 0.06s linear; }
+
+  .emote-bar { display: flex; gap: 4px; pointer-events: auto; background: rgba(11,15,23,0.82); border: 1px solid rgba(255,255,255,0.13); border-radius: 11px; padding: 4px 6px; }
+  .emote-btn { background: transparent; border: none; font-size: 16px; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+  .emote-btn:hover { background: rgba(255,255,255,0.14); }
+
+  #minimap-wrap { background: rgba(11, 15, 23, 0.84); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 5px; }
+  #minimap-canvas { display: block; width: 122px; height: 88px; }
+
+  #center-banner { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; text-align: center; z-index: 25; }
+  .countdown-text { font-size: clamp(42px, 9vw, 76px); font-weight: 900; color: #fff; text-shadow: 0 6px 24px rgba(0,0,0,0.8), 0 0 22px var(--accent-glow); }
+  .banner-sub { font-size: 13px; font-weight: 800; color: #fde047; text-transform: uppercase; letter-spacing: 0.12em; text-shadow: 0 2px 8px rgba(0,0,0,0.9); }
+
+  #toast { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.96); border: 1px solid rgba(56, 189, 248, 0.5); color: #fff; padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; z-index: 60; display: none; box-shadow: 0 10px 28px rgba(0,0,0,0.55); max-width: 92vw; text-align: center; }
+
+  /* Touch Controls */
+  #touch-controls { position: absolute; bottom: 12px; left: 10px; right: 10px; display: none; justify-content: space-between; align-items: flex-end; pointer-events: none; z-index: 15; }
+  #touch-controls.visible { display: flex; }
+  .touch-group { display: flex; gap: 6px; pointer-events: auto; }
+  .touch-btn { width: 54px; height: 54px; border-radius: 14px; background: rgba(15, 20, 30, 0.76); border: 2px solid rgba(255,255,255,0.22); color: #fff; font-size: 18px; font-weight: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; touch-action: none; }
+  .touch-btn span { font-size: 8.5px; font-weight: 700; opacity: 0.85; }
+  .touch-btn.pressed { background: rgba(239, 35, 60, 0.85); border-color: #fff; transform: scale(0.94); }
+
+  /* Main Hub / Overlays */
+  .overlay-screen { position: absolute; inset: 0; background: radial-gradient(circle at 50% 20%, rgba(22, 31, 48, 0.86), rgba(8, 11, 17, 0.95));  display: none; align-items: center; justify-content: center; padding: 10px; z-index: 30; overflow-y: auto; }
+  .overlay-screen.active { display: flex; }
+
+  .hub-shell { width: 100%; max-width: 1060px; max-height: 95vh; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.7); }
+
+  .hub-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.09); background: rgba(8, 12, 20, 0.55); }
+  .brand-row { display: flex; align-items: center; gap: 10px; }
+  .brand-title { font-size: clamp(17px, 2.6vw, 22px); font-weight: 900; letter-spacing: -0.02em; }
+  .badge-red { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 99px; background: rgba(239,35,60,0.22); border: 1px solid rgba(239,35,60,0.55); color: #fda4af; }
+
+  .profile-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .stat-chip { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 99px; padding: 4px 10px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 5px; }
+  .avatar-mini { width: 28px; height: 28px; border-radius: 7px; image-rendering: pixelated; border: 1px solid rgba(255,255,255,0.25); }
+
+  .hub-tabs { display: flex; gap: 4px; padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(12, 16, 24, 0.7); overflow-x: auto; }
+  .tab-btn { background: transparent; border: 1px solid transparent; color: var(--muted); padding: 7px 13px; border-radius: 10px; font-size: 12.5px; font-weight: 800; cursor: pointer; white-space: nowrap; transition: 0.15s; }
+  .tab-btn:hover { color: #fff; background: rgba(255,255,255,0.06); }
+  .tab-btn.active { color: #fff; background: rgba(239, 35, 60, 0.22); border-color: rgba(239, 35, 60, 0.6); }
+
+  .hub-body { padding: 14px 16px; overflow-y: auto; flex: 1; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  .grid-2 { display: grid; grid-template-columns: 1.05fr 1.15fr; gap: 14px; }
+  .grid-2-eq { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 780px) { .grid-2, .grid-2-eq { grid-template-columns: 1fr; } .hub-body { padding: 10px; } }
+
+  .box { background: var(--card); border: 1px solid var(--border); border-radius: 13px; padding: 12px; }
+  .box-title { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 9px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+  .preview-stage { position: relative; background: radial-gradient(circle at 50% 60%, #243020 0%, #111622 78%); border: 1px solid rgba(255,255,255,0.1); border-radius: 11px; height: 156px; overflow: hidden; margin-bottom: 10px; }
+  #preview-canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+  .preview-toggle { position: absolute; top: 8px; right: 8px; background: rgba(10,14,22,0.85); border: 1px solid rgba(255,255,255,0.22); color: #e2e8f0; font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 8px; cursor: pointer; }
+  .preview-toggle.active { background: rgba(239,35,60,0.88); border-color: #fda4af; color: #fff; }
+  .preview-caption { position: absolute; bottom: 6px; left: 10px; font-size: 11px; font-weight: 700; color: #f8fafc; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
+
+  .chip-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: var(--muted); padding: 4px 9px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .chip.active { background: rgba(239,35,60,0.22); border-color: var(--accent); color: #fff; }
+
+  .search-bar { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .field-input, .field-select { background: rgba(10, 14, 22, 0.85); border: 1px solid rgba(255,255,255,0.16); color: #fff; border-radius: 9px; padding: 7px 10px; font-size: 12.5px; font-weight: 600; outline: none; }
+  .field-input:focus, .field-select:focus { border-color: var(--sky); }
+
+  .car-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 7px; max-height: 360px; overflow-y: auto; padding-right: 3px; }
+  .car-card { background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 8px; cursor: pointer; text-align: left; color: #fff; transition: 0.12s; }
+  .car-card:hover { background: rgba(255,255,255,0.08); }
+  .car-card.selected { border-color: var(--accent); background: rgba(239,35,60,0.17); }
+  .car-card.owned { border-left: 3px solid var(--emerald); }
+  .car-card-title { font-size: 12px; font-weight: 800; line-height: 1.2; }
+  .car-card-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .car-card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 10px; font-weight: 800; }
+
+  .stat-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; font-size: 11px; }
+  .stat-name { width: 118px; color: var(--muted); font-weight: 700; flex-shrink: 0; }
+  .stat-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 99px; overflow: hidden; }
+  .stat-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #ef233c, #f59e0b); }
+  .stat-num { width: 46px; text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; font-size: 11px; }
+
+  .swatch-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; font-size: 11px; color: var(--muted); font-weight: 700; }
+  .swatch { width: 20px; height: 20px; border-radius: 99px; border: 2px solid rgba(255,255,255,0.25); cursor: pointer; }
+  .swatch.selected { transform: scale(1.18); border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.35); }
+
+  .spec-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 6px; }
+  .spec-table td { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .spec-table td:first-child { color: var(--muted); font-weight: 700; width: 42%; }
+
+  .stage-list { display: flex; flex-direction: column; gap: 6px; max-height: 410px; overflow-y: auto; padding-right: 3px; }
+  .stage-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 8px 10px; cursor: pointer; text-align: left; color: #fff; }
+  .stage-item.selected { border-color: var(--accent); background: rgba(239,35,60,0.17); }
+  .stage-item.locked { opacity: 0.6; }
+
+  .diff-badge { font-size: 9.5px; font-weight: 800; padding: 3px 7px; border-radius: 99px; text-transform: uppercase; white-space: nowrap; }
+  .diff-1 { background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.4); }
+  .diff-2 { background: rgba(56,189,248,0.2); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.4); }
+  .diff-3 { background: rgba(245,158,11,0.2); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); }
+  .diff-4 { background: rgba(249,115,22,0.22); color: #fdba74; border: 1px solid rgba(249,115,22,0.45); }
+  .diff-5 { background: rgba(239,35,60,0.25); color: #fda4af; border: 1px solid rgba(239,35,60,0.55); }
+
+  .btn-primary { background: linear-gradient(135deg, #ef233c, #d90429); color: #fff; border: none; border-radius: 10px; padding: 10px 18px; font-size: 13.5px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 20px var(--accent-glow); }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-secondary { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+  .btn-emerald { background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 800; cursor: pointer; }
+
+  .notice-box { font-size: 11.5px; line-height: 1.45; padding: 8px 10px; border-radius: 9px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: #bae6fd; margin-bottom: 10px; }
+  .warn-box { font-size: 11.5px; line-height: 1.45; padding: 8px 10px; border-radius: 9px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #fde68a; margin-bottom: 10px; }
+
+  .cmp-row { display: grid; grid-template-columns: 1fr 125px 1fr; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 11.5px; }
+  .cmp-center { text-align: center; color: var(--muted); font-weight: 700; font-size: 10.5px; }
+  .better { color: #34d399; font-weight: 800; }
+  .worse { color: #f87171; }
+
+  .lobby-slot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); margin-bottom: 6px; font-size: 12.5px; }
+  .room-code-big { font-size: 24px; font-weight: 900; letter-spacing: 0.16em; color: var(--gold); font-family: monospace; }
+
+  .results-card { max-width: 560px; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 18px; padding: 20px; text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,0.7); }
+  .standings-table { width: 100%; border-collapse: collapse; margin: 12px 0 16px; text-align: left; font-size: 12.5px; }
+  .standings-table th { font-size: 10px; text-transform: uppercase; color: var(--muted); padding: 6px; border-bottom: 1px solid rgba(255,255,255,0.12); }
+  .standings-table td { padding: 7px 6px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .standings-table tr.player-row { background: rgba(239,35,60,0.18); font-weight: 800; }
+  a.src-link { color: #38bdf8; text-decoration: underline; }
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <canvas id="game-canvas"></canvas>
+  <div id="toast"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-cluster">
+        <div class="hud-pill"><span class="hud-label">O'rin</span><span class="hud-val pos-1" id="hud-pos">1/4</span></div>
+        <div class="hud-pill"><span class="hud-label">Aylanish</span><span class="hud-val" id="hud-lap">1/2</span></div>
+        <div class="hud-pill"><span class="hud-label">Vaqt</span><span class="hud-val" id="hud-time">00:00.0</span></div>
+        <div class="hud-pill"><span class="hud-label">Drift</span><span class="hud-val" id="hud-drift" style="color:#38bdf8">0</span></div>
+        <div class="hud-pill"><span class="hud-label">Trassa</span><span class="hud-val" id="hud-stage" style="font-size:12.5px;">1-Bosqich</span></div>
+      </div>
+      <div class="hud-actions">
+        <div class="emote-bar" id="hud-emotes"></div>
+        <button class="icon-btn" id="btn-fullscreen" title="To'liq ekran va burish">⛶</button>
+        <button class="icon-btn" id="btn-touch-toggle" title="Sensorli tugmalar">📱</button>
+        <button class="icon-btn" id="btn-mute" title="Ovoz">🔊</button>
+        <button class="icon-btn" id="btn-restart" title="Qayta boshlash (R)">↻</button>
+        <button class="icon-btn" id="btn-pause" title="Pauza (P)">⏸ Pauza</button>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="speed-box">
+        <div class="speed-row">
+          <span class="speed-num" id="hud-speed">0</span>
+          <span class="speed-unit" id="hud-air-tag">KM/SOAT</span>
+        </div>
+        <div class="nitro-head"><span>NITRO (SHIFT)</span><span id="hud-nitro-pct">100%</span></div>
+        <div class="nitro-bar-bg"><div class="nitro-bar-fill" id="hud-nitro-bar"></div></div>
+      </div>
+      <div id="minimap-wrap"><canvas id="minimap-canvas" width="122" height="88"></canvas></div>
+    </div>
+  </div>
+
+  <div id="center-banner"></div>
+
+  <div id="touch-controls">
+    <div class="touch-group">
+      <button class="touch-btn" id="tc-left">◀<span>CHAP</span></button>
+      <button class="touch-btn" id="tc-right">▶<span>O'NG</span></button>
+    </div>
+    <div class="touch-group">
+      <button class="touch-btn" id="tc-brake">⬇<span>TORMOZ</span></button>
+      <button class="touch-btn" id="tc-drift">⚡<span>DRIFT</span></button>
+      <button class="touch-btn" id="tc-nitro">🔥<span>NITRO</span></button>
+      <button class="touch-btn" id="tc-gas">⬆<span>GAZ</span></button>
+    </div>
+  </div>
+
+  <!-- MAIN HUB OVERLAY -->
+  <div class="overlay-screen active" id="menu-screen">
+    <div class="hub-shell">
+      <div class="hub-header">
+        <div class="brand-row">
+          <span class="brand-title">🏎️ SpriteStack Poyga</span>
+          <span class="badge-red">2.5D · 25 Avto · LAN/Onlayn</span>
+        </div>
+        <div class="profile-strip">
+          <canvas class="avatar-mini" id="header-avatar" width="28" height="28"></canvas>
+          <span class="stat-chip" id="hdr-nick">TurboBurgut</span>
+          <span class="stat-chip" style="color:#fbbf24" id="hdr-level">Daraja 1</span>
+          <span class="stat-chip" style="color:#34d399" id="hdr-coins">🪙 1,500</span>
+          <button class="icon-btn" id="btn-menu-fullscreen" title="To'liq ekran va gorizontal burish">⛶ To'liq ekran</button>
+          <button class="icon-btn" id="btn-menu-mute">🔊</button>
+        </div>
+      </div>
+
+      <div class="hub-tabs" id="hub-tabs">
+        <button class="tab-btn active" data-tab="race">🏁 Poyga va Trassalar</button>
+        <button class="tab-btn" data-tab="garage">🏎️ Garaj va Do'kon (25)</button>
+        <button class="tab-btn" data-tab="compare">⚖️ Taqqoslash</button>
+        <button class="tab-btn" data-tab="multiplayer">🌐 Multiplayer (Wi-Fi / Onlayn)</button>
+        <button class="tab-btn" data-tab="profile">👤 Profil, Yutuqlar & Rekordlar</button>
+      </div>
+
+      <div class="hub-body">
+        <!-- TAB 1: RACE & TRACKS -->
+        <div class="tab-pane active" id="pane-race">
+          <div class="grid-2">
+            <div class="box">
+              <div class="box-title"><span>10 ta Trassa (Karyera & Maxsus Dunyolar)</span><span id="race-car-badge" style="color:#fda4af"></span></div>
+              <div class="stage-list" id="stage-list"></div>
+            </div>
+            <div class="box">
+              <div class="box-title"><span>Poyga Sozlamalari</span><span id="selected-track-env" style="color:#38bdf8"></span></div>
+              <div id="track-info-card" class="notice-box"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+                <div>
+                  <label class="hud-label" style="margin-bottom:4px;">Poyga turi</label>
+                  <select class="field-select" id="cfg-mode" style="width:100%;"></select>
+                </div>
+                <div>
+                  <label class="hud-label" style="margin-bottom:4px;">Ob-havo</label>
+                  <select class="field-select" id="cfg-weather" style="width:100%;"></select>
+                </div>
+                <div>
+                  <label class="hud-label" style="margin-bottom:4px;">Aylanishlar soni (1–20)</label>
+                  <input class="field-input" id="cfg-laps" type="number" min="1" max="20" value="2" style="width:100%;">
+                </div>
+                <div>
+                  <label class="hud-label" style="margin-bottom:4px;">AI Botlar soni (0–5)</label>
+                  <input class="field-input" id="cfg-bots" type="number" min="0" max="5" value="3" style="width:100%;">
+                </div>
+              </div>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#cbd5e1;margin-bottom:12px;cursor:pointer;">
+                <input type="checkbox" id="cfg-weather-phys"> Ob-havo fizikaga ta'sir qilsin (yomg'ir/qorda sirpanish)
+              </label>
+              <div style="font-size:11.5px;color:var(--muted);margin-bottom:14px;">
+                Boshqaruv: <b>W A S D</b> / <b>Strelkalar</b> · Drift: <b>Space</b> · Nitro: <b>Shift</b> · Pauza: <b>P</b> · Qayta: <b>R</b>
+              </div>
+              <button class="btn-primary" id="btn-start-race" style="width:100%;padding:13px;">🏁 Poygani Boshlash</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: GARAGE & SHOP (25 VERIFIED VEHICLES) -->
+        <div class="tab-pane" id="pane-garage">
+          <div class="grid-2">
+            <div class="box">
+              <div class="box-title"><span>O'zbekiston Avto Katalogi & Superkarlar</span><span id="garage-count" style="color:#fbbf24"></span></div>
+              <div class="chip-row" id="cat-filters"></div>
+              <div class="search-bar">
+                <input class="field-input" id="car-search" placeholder="Qidirish (Matiz, BYD, BMW, Ferrari...)" style="flex:1;min-width:130px;">
+                <select class="field-select" id="car-class-filter" style="font-size:11.5px;">
+                  <option value="all">Barcha sinf</option>
+                  <option value="E">E sinf</option>
+                  <option value="D">D sinf</option>
+                  <option value="C">C sinf</option>
+                  <option value="B">B sinf</option>
+                  <option value="A">A sinf</option>
+                  <option value="S">S sinf</option>
+                </select>
+                <select class="field-select" id="car-sort" style="font-size:11.5px;">
+                  <option value="level">Daraja</option>
+                  <option value="pr">PR reyting</option>
+                  <option value="price">Narx</option>
+                  <option value="speed">Tezlik</option>
+                  <option value="accel">Tezlanish</option>
+                </select>
+              </div>
+              <div id="world-loader-bar" style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px;font-size:11px;color:#94a3b8;">
+                <span id="world-status-text">🌍 Jahon katalogi yuklanmoqda...</span>
+                <label class="chip" style="cursor:pointer;margin:0;color:#38bdf8;border-color:rgba(56,189,248,0.4);">
+                  📂 JSON yuklash
+                  <input type="file" id="world-json-input" accept=".json" style="display:none;">
+                </label>
+              </div>
+              <div class="car-grid" id="car-grid"></div>
+              <div id="garage-pager" style="display:none;justify-content:space-between;align-items:center;margin-top:8px;gap:6px;">
+                <button class="chip" id="btn-page-prev">◀ Oldingi</button>
+                <span id="garage-page-info" style="font-size:11px;color:#cbd5e1;font-weight:700;"></span>
+                <button class="chip" id="btn-page-next">Keyingi ▶</button>
+              </div>
+            </div>
+
+            <div class="box" style="max-height:510px;overflow-y:auto;">
+              <div class="box-title"><span>Avtomobil Tafsilotlari & Tyuning</span><span id="detail-status-badge"></span></div>
+              <div class="preview-stage">
+                <canvas id="preview-canvas" width="380" height="156"></canvas>
+                <button class="preview-toggle" id="btn-explode">Qatlamlarni yoyish</button>
+                <div class="preview-caption" id="preview-caption"></div>
+              </div>
+              <div class="swatch-row" id="color-row"></div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+                <select class="field-select" id="tune-rim" style="font-size:11px;padding:4px 7px;">
+                  <option value="sport">Diska: Sport</option>
+                  <option value="chrome">Diska: Xrom</option>
+                  <option value="gold">Diska: Oltin</option>
+                  <option value="black">Diska: Qora</option>
+                </select>
+                <select class="field-select" id="tune-spoiler" style="font-size:11px;padding:4px 7px;">
+                  <option value="stock">Spoyler: Zavod</option>
+                  <option value="gt_wing">Spoyler: GT Qanot</option>
+                  <option value="none">Spoyler: Yo'q</option>
+                </select>
+                <select class="field-select" id="tune-neon" style="font-size:11px;padding:4px 7px;">
+                  <option value="none">Neon: Yo'q</option>
+                  <option value="#38bdf8">Neon: Moviy</option>
+                  <option value="#ef233c">Neon: Qizil</option>
+                  <option value="#10b981">Neon: Yashil</option>
+                  <option value="#facc15">Neon: Sariq</option>
+                </select>
+                <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#cbd5e1;">
+                  <input type="checkbox" id="tune-stripe"> Poyga chizig'i
+                </label>
+              </div>
+              <div id="purchase-action-bar" style="margin-bottom:10px;"></div>
+              <div id="car-perf-tuning" style="margin-bottom:10px;"></div>
+              <div style="font-size:10.5px;color:#94a3b8;margin-bottom:6px;">
+                <i>Eslatma: Quyidagi ko'rsatkichlar o'yin fizikasiga bevosita ulangan muvozanat qiymatlari bo'lib, rasmiy zavod ma'lumotlaridan alohida saqlanadi.</i>
+              </div>
+              <div id="car-game-stats"></div>
+              <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">
+                <div class="box-title" style="margin-bottom:4px;"><span>Haqiqiy Texnik va Tarixiy Ma'lumotlar</span></div>
+                <div id="car-real-specs"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: SIDE-BY-SIDE COMPARISON -->
+        <div class="tab-pane" id="pane-compare">
+          <div class="box">
+            <div class="box-title"><span>2 ta Avtomobilni Yonma-Yon Taqqoslash</span><span style="color:#38bdf8">Barcha 9 ta fizika + real motor ma'lumoti</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div>
+                <label class="hud-label" style="margin-bottom:4px;">1-Avtomobil (Joriy tanlangan belgilanadi)</label>
+                <select class="field-select" id="cmp-car-a" style="width:100%;"></select>
+              </div>
+              <div>
+                <label class="hud-label" style="margin-bottom:4px;">2-Avtomobil</label>
+                <select class="field-select" id="cmp-car-b" style="width:100%;"></select>
+              </div>
+            </div>
+            <div id="cmp-body"></div>
+          </div>
+        </div>
+
+        <!-- TAB 4: MULTIPLAYER (REAL WEBSOCKET LAN / ONLINE) -->
+        <div class="tab-pane" id="pane-multiplayer">
+          <div class="warn-box" id="mp-env-notice">
+            <b>Haqiqiy WebSocket Multiplayer (4 o'yinchi):</b> Mahalliy Wi-Fi (LAN) yoki Onlayn poyga uchun loyiha arxividagi <code>node server/index.js</code> serverini ishga tushiring va quyidagi server manziliga ulaning. Botlar hech qachon haqiqiy odam o'rnida ko'rsatilmaydi.
+          </div>
+          <div class="grid-2">
+            <div class="box">
+              <div class="box-title"><span>Serverga ulanish & Xonalar</span><span id="mp-conn-status" style="color:#f87171">● Ulanmagan</span></div>
+              <div style="display:flex;gap:6px;margin-bottom:8px;">
+                <input class="field-input" id="mp-server-url" placeholder="ws://localhost:3000" style="flex:1;">
+                <button class="btn-secondary" id="btn-mp-connect">Ulanish</button>
+              </div>
+              <div class="chip-row">
+                <button class="chip active" id="mp-scope-lan">📶 Mahalliy Wi-Fi (LAN)</button>
+                <button class="chip" id="mp-scope-online">🌍 Onlayn (Internet)</button>
+                <button class="chip" id="btn-mp-refresh">↻ Yangilash</button>
+                <button class="chip" id="btn-mp-random">🎲 Tasodifiy kirish</button>
+              </div>
+              <div style="display:flex;gap:6px;margin-bottom:10px;">
+                <input class="field-input" id="mp-join-code" placeholder="6 xonali kod (masalan: A7K9PQ)" maxlength="6" style="flex:1;text-transform:uppercase;">
+                <input class="field-input" id="mp-join-pass" type="password" placeholder="Parol (ixtiyoriy)" style="width:120px;">
+                <button class="btn-emerald" id="btn-mp-join">Kirish</button>
+              </div>
+              <div id="mp-room-list" style="max-height:220px;overflow-y:auto;"></div>
+            </div>
+
+            <div class="box" id="mp-right-panel">
+              <!-- Create Room or Active Waiting Lobby -->
+              <div id="mp-create-box">
+                <div class="box-title"><span>Yangi Xona Yaratish (Maks. 4 kishi)</span></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                  <div style="grid-column:span 2;display:flex;gap:6px;">
+                    <input class="field-input" id="mp-room-name" placeholder="Xona nomi..." style="flex:1;">
+                    <button class="btn-secondary" id="btn-mp-rand-name">🎲</button>
+                  </div>
+                  <div>
+                    <label class="hud-label">Trassa</label>
+                    <select class="field-select" id="mp-track" style="width:100%;"></select>
+                  </div>
+                  <div>
+                    <label class="hud-label">Maks. o'yinchi (2–4)</label>
+                    <select class="field-select" id="mp-max-players" style="width:100%;">
+                      <option value="2">2 o'yinchi</option>
+                      <option value="3">3 o'yinchi</option>
+                      <option value="4" selected>4 o'yinchi</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="hud-label">Aylanish (1–20)</label>
+                    <input class="field-input" id="mp-laps" type="number" min="1" max="20" value="3" style="width:100%;">
+                  </div>
+                  <div>
+                    <label class="hud-label">Ko'rinish</label>
+                    <select class="field-select" id="mp-visibility" style="width:100%;">
+                      <option value="public">Ochiq (Public)</option>
+                      <option value="private">Maxfiy (Private)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="hud-label">Parol (ixtiyoriy)</label>
+                    <input class="field-input" id="mp-password" type="password" placeholder="Bo'sh = parolsiz" style="width:100%;">
+                  </div>
+                  <div style="display:flex;align-items:center;">
+                    <label style="font-size:12px;display:flex;align-items:center;gap:6px;">
+                      <input type="checkbox" id="mp-ai-enabled" checked> AI Botlar qo'shish
+                    </label>
+                  </div>
+                </div>
+                <button class="btn-primary" id="btn-mp-create" style="width:100%;">➕ Xona Yaratish</button>
+              </div>
+
+              <div id="mp-lobby-box" style="display:none;">
+                <div class="box-title">
+                  <span id="lobby-title">Kutish Xonasi</span>
+                  <span class="room-code-big" id="lobby-code">------</span>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+                  <canvas id="lobby-qr" width="84" height="84" style="border-radius:8px;background:#fff;"></canvas>
+                  <div style="flex:1;font-size:11.5px;color:#cbd5e1;">
+                    <div id="lobby-meta" style="margin-bottom:6px;"></div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <button class="btn-secondary" id="btn-copy-code" style="padding:5px 9px;font-size:11px;">📋 Kodni nusxalash</button>
+                      <button class="btn-secondary" id="btn-copy-link" style="padding:5px 9px;font-size:11px;">🔗 Havola nusxalash</button>
+                    </div>
+                  </div>
+                </div>
+                <div id="lobby-players"></div>
+                <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                  <button class="btn-emerald" id="btn-lobby-ready" style="flex:1;">✅ Tayyorman</button>
+                  <button class="btn-primary" id="btn-lobby-start" style="flex:1;display:none;">🏁 Poygani Boshlash</button>
+                  <button class="btn-secondary" id="btn-lobby-leave">Chiqish</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: PROFILE, ACHIEVEMENTS, DAILY & LOCAL LEADERBOARD -->
+        <div class="tab-pane" id="pane-profile">
+          <div class="grid-2-eq">
+            <div class="box">
+              <div class="box-title"><span>O'yinchi Profili & Cheksiz Daraja</span><span id="prof-level-tag" style="color:#fbbf24"></span></div>
+              <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;">
+                <canvas id="profile-avatar" width="56" height="56" style="border-radius:12px;image-rendering:pixelated;border:2px solid rgba(255,255,255,0.2);"></canvas>
+                <div style="flex:1;">
+                  <div style="display:flex;gap:6px;margin-bottom:6px;">
+                    <input class="field-input" id="prof-nick-input" maxlength="18" style="flex:1;">
+                    <button class="btn-secondary" id="btn-rand-nick" title="Tasodifiy nik">🎲 Nik</button>
+                    <button class="btn-emerald" id="btn-save-nick" style="padding:6px 10px;">Saqlash</button>
+                  </div>
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <button class="btn-secondary" id="btn-rand-avatar" style="padding:4px 9px;font-size:11px;">🎨 Avatar o'zgartirish</button>
+                    <span id="prof-xp-text" style="font-size:11px;color:var(--muted);"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="nitro-bar-bg" style="height:10px;margin-bottom:12px;">
+                <div class="nitro-bar-fill" id="prof-xp-bar" style="background:linear-gradient(90deg,#fbbf24,#f97316);"></div>
+              </div>
+              <div id="prof-stats-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;"></div>
+              <div class="box-title"><span>Kunlik Topshiriqlar</span></div>
+              <div id="daily-list"></div>
+            </div>
+
+            <div class="box" style="max-height:480px;overflow-y:auto;">
+              <div class="box-title"><span>Yutuqlar (Achievements)</span><span id="ach-count" style="color:#34d399"></span></div>
+              <div id="ach-list" style="margin-bottom:14px;"></div>
+              <div class="box-title"><span>Shaxsiy Trassa Rekordlari</span></div>
+              <div id="records-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSE OVERLAY -->
+  <div class="overlay-screen" id="pause-screen">
+    <div class="results-card">
+      <div style="font-size:42px;margin-bottom:6px;">⏸️</div>
+      <h2 style="margin-bottom:6px;">Pauza</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Poyga to'xtatib turildi</p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn-primary" id="btn-resume">▶ Davom etish</button>
+        <button class="btn-secondary" id="btn-pause-restart">↻ Qayta boshlash</button>
+        <button class="btn-secondary" id="btn-pause-menu">🏠 Bosh menyu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS OVERLAY -->
+  <div class="overlay-screen" id="results-screen">
+    <div class="results-card">
+      <div style="font-size:44px;margin-bottom:4px;" id="res-trophy">🏆</div>
+      <h2 id="res-title" style="margin-bottom:4px;">1-o'rin!</h2>
+      <p id="res-sub" style="font-size:12.5px;color:var(--muted);margin-bottom:10px;"></p>
+      <div id="res-reward-box" class="notice-box" style="text-align:center;font-weight:700;"></div>
+      <table class="standings-table">
+        <thead><tr><th>#</th><th>Poygachi</th><th>Avtomobil</th><th>Natija</th></tr></thead>
+        <tbody id="res-tbody"></tbody>
+      </table>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn-primary" id="btn-next-stage">➡ Keyingi trassa</button>
+        <button class="btn-secondary" id="btn-retry-stage">↻ Qayta o'ynash</button>
+        <button class="btn-secondary" id="btn-res-menu">🏠 Garaj & Menyu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- INLINED_APP_BUNDLE -->
+</body>
+</html>

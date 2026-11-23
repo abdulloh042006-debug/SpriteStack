@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: spritestack-poyga-server
+    runtime: node
+    plan: free
+    buildCommand: "echo 'Zero-dependency Node.js server ready'"
+    startCommand: "node server/index.js"
+    healthCheckPath: "/api/info"
+    envVars:
+      - key: NODE_ENV
+        value: production
