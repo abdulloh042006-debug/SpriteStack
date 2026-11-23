@@ -193,7 +193,12 @@ export function createDefaultProfile() {
     settings: {
       muted: false,
       lang: 'uz',
-      serverUrl: ''
+      serverUrl: '',
+      steeringSensitivity: 1,
+      touchControls: true,
+      showEmotes: false,
+      touchOpacity: 75,
+      touchSize: 68
     }
   };
 }

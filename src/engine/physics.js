@@ -188,6 +188,32 @@ export function findNearestSample(car, track) {
   return { idx: bestIdx, dist: Math.sqrt(bestD2), sample: S[bestIdx] };
 }
 
+// Solid tunnel boundaries. The rendered side walls sit just outside the asphalt;
+// keep the full car body inside the drivable corridor and reflect outward velocity.
+export function resolveTunnelWallCollision(car, track) {
+  if (!track || !track.samples || !track.samples.length) return false;
+  const nearest = findNearestSample(car, track);
+  if (!nearest.sample.inTunnel && !car.inTunnel) return false;
+
+  const sample = nearest.sample;
+  const lateral = (car.x - sample.x) * sample.nx + (car.y - sample.y) * sample.ny;
+  const safeHalfWidth = Math.max(16, track.halfW - 15);
+  if (Math.abs(lateral) <= safeHalfWidth) return false;
+
+  const side = lateral < 0 ? -1 : 1;
+  const corrected = side * safeHalfWidth;
+  car.x = sample.x + sample.nx * corrected;
+  car.y = sample.y + sample.ny * corrected;
+
+  const outwardVelocity = (car.vx * sample.nx + car.vy * sample.ny) * side;
+  if (outwardVelocity > 0) {
+    const impulse = outwardVelocity * 1.14;
+    car.vx -= sample.nx * side * impulse;
+    car.vy -= sample.ny * side * impulse;
+  }
+  return true;
+}
+
 export function createPhysicsCar(opts) {
   const gs = opts.gameStats;
   return {
@@ -363,7 +389,11 @@ export function updateCarPhysics(car, input, dt, track, raceConfig, callbacks = 
   const steerStrength = Math.min(1, speedMag / 85) * (car.airborne ? 0.18 : 1.0);
   const dirSign = (car.vx * Math.cos(car.angle) + car.vy * Math.sin(car.angle)) >= -10 ? 1 : -1;
   const driftTurnBoost = wantDrift && !car.airborne ? 1.24 : 1.0;
-  car.angle += steer * car.handling * driftTurnBoost * steerStrength * dirSign * dt;
+  const requestedSensitivity = Number(input.steeringSensitivity);
+  const steeringSensitivity = car.isPlayer && Number.isFinite(requestedSensitivity)
+    ? Math.max(0.5, Math.min(1.5, requestedSensitivity))
+    : 1.0;
+  car.angle += steer * car.handling * driftTurnBoost * steerStrength * dirSign * steeringSensitivity * dt;
 
   const fx = Math.cos(car.angle);
   const fy = Math.sin(car.angle);
@@ -402,6 +432,12 @@ export function updateCarPhysics(car, input, dt, track, raceConfig, callbacks = 
   car.vy = fy * forwardVel + ry * lateralVel;
   car.x += car.vx * dt;
   car.y += car.vy * dt;
+
+  // Tunnel boundaries are physical, not decorative: constrain both road edges.
+  resolveTunnelWallCollision(car, track);
+  const finalNearest = findNearestSample(car, track);
+  car.inTunnel = Boolean(finalNearest.sample.inTunnel);
+  car.onGrass = !car.airborne && finalNearest.dist > track.halfW + 10;
   car.speed = Math.hypot(car.vx, car.vy);
 
   car.drifting = !car.airborne && (Math.abs(lateralVel) > 46 || (wantDrift && Math.abs(steer) > 0.2)) && car.speed > 130;

@@ -20,7 +20,7 @@ import {
   createDefaultProfile, calculateRaceReward, generateNickname
 } from '../src/engine/progression.js';
 import {
-  buildTrackGeometry, updateDecorEnvironments, createPhysicsCar, updateCarPhysics
+  buildTrackGeometry, updateDecorEnvironments, createPhysicsCar, updateCarPhysics, resolveTunnelWallCollision, findNearestSample
 } from '../src/engine/physics.js';
 import { generateCarSlices } from '../src/engine/spriteStacker.js';
 import { createMultiplayerServer } from '../server/index.js';
@@ -272,6 +272,80 @@ async function runAll() {
     const startShipY = sh.y;
     updateDecorEnvironments(coastal, 0.1);
     assert.ok(Math.abs(sh.y - (startShipY + sh.dir * sh.speed * 0.1)) < 0.001, 'Car altered ship movement!');
+  });
+
+  await test('Tunnel side walls physically stop cars on both edges and rebound outward velocity', () => {
+    const track = buildTrackGeometry(TRACKS[2]);
+    const tunnel = track.tunnels[0];
+    const idx = Math.floor((tunnel.startIdx + tunnel.endIdx) / 2);
+    const sample = track.samples[idx];
+    for (const side of [-1, 1]) {
+      const car = createPhysicsCar({
+        id: 'tunnel-wall-' + side, isPlayer: true, name: 'Wall test', vehicleId: 'malibu', carName: 'Malibu',
+        x: sample.x + sample.nx * side * (track.halfW + 28),
+        y: sample.y + sample.ny * side * (track.halfW + 28),
+        angle: sample.angle, wpIndex: idx, gameStats: getVehicleById('malibu').gameStats
+      });
+      car.inTunnel = true;
+      car.vx = sample.nx * side * 140;
+      car.vy = sample.ny * side * 140;
+      updateCarPhysics(car, { steeringSensitivity: 1 }, 0.016, track, { laps: 2, active: true, raceTime: 1, weatherPhysics: false });
+      assert.equal(resolveTunnelWallCollision(car, track), false, 'Integrated physics should already keep the car off the wall');
+      const contact = findNearestSample(car, track).sample;
+      const offset = (car.x - contact.x) * contact.nx + (car.y - contact.y) * contact.ny;
+      assert.ok(Math.abs(offset) <= track.halfW - 15 + 0.01, 'Car centre must remain inside either tunnel wall line');
+      const outwardAfter = (car.vx * contact.nx + car.vy * contact.ny) * side;
+      assert.ok(outwardAfter < 0, 'Velocity toward the wall must be reflected inward');
+    }
+  });
+
+  await test('Steering sensitivity scales player turning response', () => {
+    const track = buildTrackGeometry(TRACKS[0]);
+    const sample = track.samples[12];
+    const makeCar = id => {
+      const car = createPhysicsCar({
+        id, isPlayer: true, name: id, vehicleId: 'malibu', carName: 'Malibu',
+        x: sample.x, y: sample.y, angle: sample.angle, wpIndex: 12,
+        gameStats: getVehicleById('malibu').gameStats
+      });
+      car.vx = Math.cos(sample.angle) * 180;
+      car.vy = Math.sin(sample.angle) * 180;
+      return car;
+    };
+    const low = makeCar('low-sensitivity');
+    const high = makeCar('high-sensitivity');
+    const cfg = { laps: 2, active: true, raceTime: 1, weatherPhysics: false };
+    updateCarPhysics(low, { right: true, steeringSensitivity: 0.5 }, 0.016, track, cfg);
+    updateCarPhysics(high, { right: true, steeringSensitivity: 1.5 }, 0.016, track, cfg);
+    const lowTurn = Math.abs(low.angle - sample.angle);
+    const highTurn = Math.abs(high.angle - sample.angle);
+    assert.ok(highTurn > lowTurn * 2.8, 'Higher sensitivity must turn faster: ' + lowTurn + ' vs ' + highTurn);
+  });
+
+  await test('Default profile stores safe adjustable gameplay UI settings', () => {
+    const p = createDefaultProfile();
+    assert.equal(p.settings.steeringSensitivity, 1);
+    assert.equal(p.settings.touchControls, true);
+    assert.equal(p.settings.showEmotes, false);
+    assert.equal(p.settings.touchSize, 68);
+    assert.equal(p.settings.touchOpacity, 75);
+  });
+
+  await test('Gameplay HUD is minimal and settings controls are reachable from menu and pause', () => {
+    const templatePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src/template.html');
+    const template = fs.readFileSync(templatePath, 'utf8');
+    const hudStart = template.indexOf('<div class="hud-actions">');
+    const hudEnd = template.indexOf('<div class="hud-bottom">', hudStart);
+    const hud = template.slice(hudStart, hudEnd);
+    assert.ok(hudStart >= 0 && hudEnd > hudStart, 'Gameplay HUD actions block not found');
+    assert.ok(hud.includes('id="btn-pause"'), 'Pause must remain visible on the HUD');
+    for (const id of ['btn-fullscreen', 'btn-touch-toggle', 'btn-mute', 'btn-restart']) {
+      assert.ok(!template.includes('id="' + id + '"'), id + ' should be removed from gameplay');
+    }
+    assert.ok(template.includes('data-tab="settings"'));
+    assert.ok(template.includes('id="pane-settings"'));
+    assert.ok(template.includes('id="setting-steering"'));
+    assert.ok(template.includes('id="btn-pause-settings"'));
   });
 
   await test('Tunnel walls and railway underpasses keep correct visual depth order', () => {

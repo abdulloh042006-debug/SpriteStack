@@ -444,6 +444,95 @@
 .standings-table th{color:#94a3b8;text-transform:uppercase;font-size:10px;letter-spacing:.08em}.standings-table tr{border-bottom:1px solid rgba(255,255,255,.07)}
 @media(orientation:landscape) and (max-height:520px){.hub-shell{border-radius:0!important;border:none!important}.hub-tabs{background:linear-gradient(180deg,rgba(8,12,22,.92),rgba(5,8,16,.96))!important;border-right:1px solid rgba(255,255,255,.1)!important}.tab-btn{border-radius:14px!important}}
 
+
+  /* Mobile landscape hub: fixed flex regions prevent profile, tabs and content overlap. */
+  @media (orientation: landscape) {
+    #menu-screen { align-items: stretch; justify-content: stretch; }
+    #menu-screen .hub-shell {
+      width: 100%;
+      height: calc(100dvh - 12px);
+      max-height: calc(100dvh - 12px);
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    #menu-screen .hub-header {
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+      min-width: 0;
+      gap: 8px;
+    }
+    #menu-screen .brand-row { min-width: 0; flex: 0 1 34%; }
+    #menu-screen .brand-title { white-space: nowrap; }
+    #menu-screen .profile-strip {
+      flex: 1 1 auto;
+      min-width: 0;
+      flex-wrap: nowrap;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+    #menu-screen .profile-strip .stat-chip { white-space: nowrap; padding: 3px 7px; font-size: 10px; }
+    #menu-screen .hub-tabs {
+      flex: 0 0 auto;
+      min-height: 42px;
+      max-width: 100%;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: nowrap;
+      scrollbar-width: thin;
+      touch-action: pan-x;
+    }
+    #menu-screen .tab-btn { flex: 0 0 auto; min-height: 34px; padding: 6px 11px; }
+    #menu-screen .hub-body {
+      flex: 1 1 0;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+  }
+
+  @media (orientation: landscape) and (max-height: 520px) {
+    #menu-screen .hub-shell { height: calc(100dvh - 6px); max-height: calc(100dvh - 6px); }
+    #menu-screen .hub-header { padding: 5px 9px; }
+    #menu-screen .brand-title { font-size: 15px; }
+    #menu-screen .badge-red { display: none; }
+    #menu-screen .profile-strip .avatar-mini { width: 23px; height: 23px; }
+    #menu-screen .profile-strip .stat-chip { padding: 2px 5px; font-size: 9px; }
+    #menu-screen .hub-tabs { min-height: 37px; padding: 3px 7px; }
+    #menu-screen .tab-btn { min-height: 31px; padding: 5px 9px; font-size: 11px; }
+    #menu-screen .hub-body { padding: 6px 8px; }
+  }
+
+  .settings-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+  .settings-title { font-size:16px; font-weight:900; }
+  .settings-subtitle,.settings-help { color:var(--muted); font-size:11.5px; line-height:1.5; }
+  .settings-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .settings-card { min-width:0; }
+  .setting-label { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0; color:#e2e8f0; font-size:12px; font-weight:700; }
+  .setting-label output { color:#67e8f9; font-size:12px; font-weight:900; font-variant-numeric:tabular-nums; }
+  .setting-range { width:100%; accent-color:#22d3ee; min-height:28px; touch-action:pan-y; }
+  .setting-toggle { display:flex; align-items:center; gap:9px; padding:8px 0; color:#e2e8f0; font-size:12px; font-weight:650; }
+  .setting-toggle input { width:18px; height:18px; accent-color:#22d3ee; flex:0 0 auto; }
+  .settings-info { display:grid; gap:6px; }
+  .settings-info b { color:#f8fafc; }
+  .touch-btn {
+    background: rgba(15, 20, 30, var(--user-touch-opacity, .76));
+  }
+  #touch-controls .touch-btn {
+    width:var(--user-touch-size, var(--touch-size));
+    height:var(--user-touch-size, var(--touch-size));
+    min-width:var(--user-touch-size, var(--touch-size));
+    min-height:var(--user-touch-size, var(--touch-size));
+    flex-basis:var(--user-touch-size, var(--touch-size));
+  }
+  .emote-bar[hidden] { display:none !important; }
+  @media (max-width:700px) {
+    .settings-grid { grid-template-columns:minmax(0,1fr); }
+    .settings-heading { align-items:flex-start; }
+  }
+
 </style>
 </head>
 <body>
@@ -462,11 +551,7 @@
         <div class="hud-pill"><span class="hud-label">Trassa</span><span class="hud-val" id="hud-stage" style="font-size:12.5px;">1-Bosqich</span></div>
       </div>
       <div class="hud-actions">
-        <div class="emote-bar" id="hud-emotes"></div>
-        <button class="icon-btn" id="btn-fullscreen" title="To'liq ekran va burish">⛶</button>
-        <button class="icon-btn" id="btn-touch-toggle" title="Sensorli tugmalar">📱</button>
-        <button class="icon-btn" id="btn-mute" title="Ovoz">🔊</button>
-        <button class="icon-btn" id="btn-restart" title="Qayta boshlash (R)">↻</button>
+        <div class="emote-bar" id="hud-emotes" aria-label="Poyga reaksiyalari"></div>
         <button class="icon-btn" id="btn-pause" title="Pauza (P)">⏸ Pauza</button>
       </div>
     </div>
@@ -512,8 +597,6 @@
           <span class="stat-chip" id="hdr-nick">TurboBurgut</span>
           <span class="stat-chip" style="color:#fbbf24" id="hdr-level">Daraja 1</span>
           <span class="stat-chip" style="color:#34d399" id="hdr-coins">🪙 1,500</span>
-          <button class="icon-btn" id="btn-menu-fullscreen" title="To'liq ekran va gorizontal burish">⛶ To'liq ekran</button>
-          <button class="icon-btn" id="btn-menu-mute">🔊</button>
         </div>
       </div>
 
@@ -521,6 +604,7 @@
         <button class="tab-btn active" data-tab="race">🏁 Poyga va Trassalar</button>
         <button class="tab-btn" data-tab="garage">🏎️ Garaj va Do'kon (25)</button>
         <button class="tab-btn" data-tab="compare">⚖️ Taqqoslash</button>
+        <button class="tab-btn" data-tab="settings">⚙️ Sozlamalar</button>
         <button class="tab-btn" data-tab="multiplayer">🌐 Multiplayer (Wi-Fi / Onlayn)</button>
         <button class="tab-btn" data-tab="profile">👤 Profil, Yutuqlar & Rekordlar</button>
       </div>
@@ -765,6 +849,70 @@
           </div>
         </div>
 
+        <!-- TAB: SETTINGS -->
+        <div class="tab-pane" id="pane-settings">
+          <div class="settings-heading">
+            <div>
+              <div class="settings-title">Boshqaruv va o'yin sozlamalari</div>
+              <div class="settings-subtitle">O'zgartirishlar avtomatik saqlanadi.</div>
+            </div>
+            <button class="btn-secondary" id="btn-settings-back-pause" hidden>⏸ Pauzaga qaytish</button>
+          </div>
+          <div class="settings-grid">
+            <section class="box settings-card">
+              <div class="box-title">Boshqaruv sezgirligi</div>
+              <label class="setting-label" for="setting-steering">
+                <span>Rul burish sezgirligi</span>
+                <output id="setting-steering-value">100%</output>
+              </label>
+              <input class="setting-range" id="setting-steering" type="range" min="50" max="150" step="5" value="100">
+              <p class="settings-help">Past qiymat mashinani sekinroq, yuqori qiymat esa tezroq buradi.</p>
+            </section>
+
+            <section class="box settings-card">
+              <div class="box-title">Ovoz va reaksiyalar</div>
+              <label class="setting-toggle">
+                <input type="checkbox" id="setting-sound-enabled" checked>
+                <span>O'yin ovozlarini yoqish</span>
+              </label>
+              <label class="setting-toggle">
+                <input type="checkbox" id="setting-show-emotes">
+                <span>Poygada emodzi/reaksiya tugmalarini ko'rsatish</span>
+              </label>
+              <p class="settings-help">Reaksiya paneli odatda yashirin turadi. Uni shu yerdan yoqishingiz mumkin.</p>
+            </section>
+
+            <section class="box settings-card">
+              <div class="box-title">Sensorli boshqaruv</div>
+              <label class="setting-toggle">
+                <input type="checkbox" id="setting-touch-enabled" checked>
+                <span>CHAP/O'NG va pedal tugmalarini ko'rsatish</span>
+              </label>
+              <label class="setting-label" for="setting-touch-size">
+                <span>Tugmalar o'lchami</span>
+                <output id="setting-touch-size-value">68 px</output>
+              </label>
+              <input class="setting-range" id="setting-touch-size" type="range" min="52" max="88" step="2" value="68">
+              <label class="setting-label" for="setting-touch-opacity">
+                <span>Tugmalar shaffofligi</span>
+                <output id="setting-touch-opacity-value">75%</output>
+              </label>
+              <input class="setting-range" id="setting-touch-opacity" type="range" min="30" max="100" step="5" value="75">
+            </section>
+
+            <section class="box settings-card">
+              <div class="box-title">Tezkor ma'lumot</div>
+              <div class="settings-help settings-info">
+                <div><b>W / ↑</b> Gaz</div>
+                <div><b>S / ↓</b> Tormoz</div>
+                <div><b>A / ← · D / →</b> Chap / o'ng</div>
+                <div><b>Space</b> Drift · <b>Shift</b> Nitro</div>
+                <div><b>P / Esc</b> Pauza · <b>R</b> Qayta boshlash</div>
+              </div>
+            </section>
+          </div>
+        </div>
+
         <!-- TAB 5: PROFILE, ACHIEVEMENTS, DAILY & LOCAL LEADERBOARD -->
         <div class="tab-pane" id="pane-profile">
           <div class="grid-2-eq">
@@ -812,6 +960,8 @@
       <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Poyga to'xtatib turildi</p>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
         <button class="btn-primary" id="btn-resume">▶ Davom etish</button>
+        <button class="btn-secondary" id="btn-pause-mute">🔊 Ovoz</button>
+        <button class="btn-secondary" id="btn-pause-settings">⚙️ Sozlamalar</button>
         <button class="btn-secondary" id="btn-pause-restart">↻ Qayta boshlash</button>
         <button class="btn-secondary" id="btn-pause-menu">🏠 Bosh menyu</button>
       </div>
@@ -2934,7 +3084,12 @@ function createDefaultProfile() {
     settings: {
       muted: false,
       lang: 'uz',
-      serverUrl: ''
+      serverUrl: '',
+      steeringSensitivity: 1,
+      touchControls: true,
+      showEmotes: false,
+      touchOpacity: 75,
+      touchSize: 68
     }
   };
 }
@@ -3710,6 +3865,32 @@ function findNearestSample(car, track) {
   }
   return { idx: bestIdx, dist: Math.sqrt(bestD2), sample: S[bestIdx] };
 }
+
+// Solid tunnel boundaries. The rendered side walls sit just outside the asphalt;
+// keep the full car body inside the drivable corridor and reflect outward velocity.
+function resolveTunnelWallCollision(car, track) {
+  if (!track || !track.samples || !track.samples.length) return false;
+  const nearest = findNearestSample(car, track);
+  if (!nearest.sample.inTunnel && !car.inTunnel) return false;
+
+  const sample = nearest.sample;
+  const lateral = (car.x - sample.x) * sample.nx + (car.y - sample.y) * sample.ny;
+  const safeHalfWidth = Math.max(16, track.halfW - 15);
+  if (Math.abs(lateral) <= safeHalfWidth) return false;
+
+  const side = lateral < 0 ? -1 : 1;
+  const corrected = side * safeHalfWidth;
+  car.x = sample.x + sample.nx * corrected;
+  car.y = sample.y + sample.ny * corrected;
+
+  const outwardVelocity = (car.vx * sample.nx + car.vy * sample.ny) * side;
+  if (outwardVelocity > 0) {
+    const impulse = outwardVelocity * 1.14;
+    car.vx -= sample.nx * side * impulse;
+    car.vy -= sample.ny * side * impulse;
+  }
+  return true;
+}
 function createPhysicsCar(opts) {
   const gs = opts.gameStats;
   return {
@@ -3884,7 +4065,11 @@ function updateCarPhysics(car, input, dt, track, raceConfig, callbacks = {}) {
   const steerStrength = Math.min(1, speedMag / 85) * (car.airborne ? 0.18 : 1.0);
   const dirSign = (car.vx * Math.cos(car.angle) + car.vy * Math.sin(car.angle)) >= -10 ? 1 : -1;
   const driftTurnBoost = wantDrift && !car.airborne ? 1.24 : 1.0;
-  car.angle += steer * car.handling * driftTurnBoost * steerStrength * dirSign * dt;
+  const requestedSensitivity = Number(input.steeringSensitivity);
+  const steeringSensitivity = car.isPlayer && Number.isFinite(requestedSensitivity)
+    ? Math.max(0.5, Math.min(1.5, requestedSensitivity))
+    : 1.0;
+  car.angle += steer * car.handling * driftTurnBoost * steerStrength * dirSign * steeringSensitivity * dt;
 
   const fx = Math.cos(car.angle);
   const fy = Math.sin(car.angle);
@@ -3923,6 +4108,12 @@ function updateCarPhysics(car, input, dt, track, raceConfig, callbacks = {}) {
   car.vy = fy * forwardVel + ry * lateralVel;
   car.x += car.vx * dt;
   car.y += car.vy * dt;
+
+  // Tunnel boundaries are physical, not decorative: constrain both road edges.
+  resolveTunnelWallCollision(car, track);
+  const finalNearest = findNearestSample(car, track);
+  car.inTunnel = Boolean(finalNearest.sample.inTunnel);
+  car.onGrass = !car.airborne && finalNearest.dist > track.halfW + 10;
   car.speed = Math.hypot(car.vx, car.vy);
 
   car.drifting = !car.airborne && (Math.abs(lateralVel) > 46 || (wantDrift && Math.abs(steer) > 0.2)) && car.speed > 130;
@@ -4222,7 +4413,8 @@ const state = {
   garageSearch: '',
   garageSort: 'level',
   explodePreview: false,
-  touchVisible: isTouchDevice(),
+  touchVisible: isTouchDevice() && profile.settings.touchControls !== false,
+  settingsReturnToPause: false,
   raceConfig: { laps: 2, weather: 'clear', weatherPhysics: false, raceMode: 'classic', botCount: 3, isMultiplayer: false, raceTime: 0, active: false },
   track: null,
   cars: [],
@@ -4807,6 +4999,10 @@ function startRace(mpStartData = null) {
   state.cam.y = player.y;
   state.cam.shake = 0;
 
+  state.settingsReturnToPause = false;
+  syncSettingsNavigationVisibility();
+  const settingsBackButton = document.getElementById('btn-settings-back-pause');
+  if (settingsBackButton) settingsBackButton.hidden = true;
   document.getElementById('menu-screen').classList.remove('active');
   document.getElementById('pause-screen').classList.remove('active');
   document.getElementById('results-screen').classList.remove('active');
@@ -4997,7 +5193,10 @@ function tick(ts) {
           continue;
         }
 
-        updateCarPhysics(car, keys, dt, state.track, state.raceConfig, {
+        const carInput = car.isPlayer
+          ? { ...keys, steeringSensitivity: profile.settings.steeringSensitivity }
+          : keys;
+        updateCarPhysics(car, carInput, dt, state.track, state.raceConfig, {
           onJump: (c) => { if (c.isPlayer) { sfx.jump(); showBanner('PARVOZ!', '', 550); } },
           onLand: (c) => {
             if (c.isPlayer) { sfx.land(); state.cam.shake = Math.min(7, state.cam.shake + 3.5); }
@@ -5188,8 +5387,18 @@ function connectMultiplayer(url) {
 }
 
 /* ---------- UI Rendering ---------- */
+function syncSettingsNavigationVisibility() {
+  const settingsOnly = state.settingsReturnToPause && state.mode === 'paused';
+  document.querySelectorAll('.tab-btn').forEach(button => {
+    button.hidden = settingsOnly && button.dataset.tab !== 'settings';
+  });
+}
+
 function switchTab(tabId) {
   state.activeTab = tabId;
+  syncSettingsNavigationVisibility();
+  const pauseReturn = document.getElementById('btn-settings-back-pause');
+  if (pauseReturn) pauseReturn.hidden = !(tabId === 'settings' && state.settingsReturnToPause);
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + tabId));
   if (tabId === 'race') renderTracksTab();
@@ -5205,6 +5414,7 @@ function switchTab(tabId) {
     }
   }
   else if (tabId === 'profile') renderProfileTab();
+  else if (tabId === 'settings') applyUiSettings();
 }
 
 function renderHeader() {
@@ -5719,6 +5929,7 @@ function refreshAllMenus() {
   else if (state.activeTab === 'compare') renderCompareTab();
   else if (state.activeTab === 'multiplayer') { renderMpRoomList(); renderMpLobby(); }
   else if (state.activeTab === 'profile') renderProfileTab();
+  else if (state.activeTab === 'settings') applyUiSettings();
 }
 
 function joinRoomByCode() {
@@ -5741,7 +5952,7 @@ function joinRoomByCode() {
 
 function updateTouchVisibility() {
   const tc = document.getElementById('touch-controls');
-  const visible = state.touchVisible && (state.mode === 'racing' || state.mode === 'countdown');
+  const visible = state.touchVisible && profile.settings.touchControls !== false && (state.mode === 'racing' || state.mode === 'countdown');
   tc.classList.toggle('visible', visible);
   tc.setAttribute('aria-hidden', String(!visible));
 }
@@ -5750,6 +5961,7 @@ function togglePause() {
   if (state.mode === 'racing') {
     state.mode = 'paused';
     state.raceConfig.active = false;
+    for (const key of Object.keys(keys)) keys[key] = false;
     document.getElementById('pause-screen').classList.add('active');
     sfx.updateEngine(0, false, false, false, false);
   } else if (state.mode === 'paused') {
@@ -5760,6 +5972,10 @@ function togglePause() {
 }
 
 function returnToMenu() {
+  state.settingsReturnToPause = false;
+  syncSettingsNavigationVisibility();
+  const settingsBackButton = document.getElementById('btn-settings-back-pause');
+  if (settingsBackButton) settingsBackButton.hidden = true;
   state.mode = 'menu';
   state.raceConfig.active = false;
   document.getElementById('hud').classList.remove('active');
@@ -5773,41 +5989,73 @@ function returnToMenu() {
   refreshAllMenus();
 }
 
-async function toggleFullscreenLandscape() {
-  const doc = document;
-  const el = document.documentElement;
-  const isFs = Boolean(doc.fullscreenElement || doc.webkitFullscreenElement);
-  try {
-    if (!isFs) {
-      if (el.requestFullscreen) await el.requestFullscreen();
-      else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
-      if (screen.orientation && screen.orientation.lock) {
-        try { await screen.orientation.lock('landscape'); } catch (_) {}
-      }
-      if (('ontouchstart' in window) || navigator.maxTouchPoints > 0) {
-        state.touchVisible = true;
-        updateTouchVisibility();
-      }
-      showToast("To’liq ekran va gorizontal rejim yoqildi!");
-    } else {
-      if (screen.orientation && screen.orientation.unlock) {
-        try { screen.orientation.unlock(); } catch (_) {}
-      }
-      if (doc.exitFullscreen) await doc.exitFullscreen();
-      else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
-    }
-  } catch (_) {
-    showToast("Brauzer to'liq ekran rejimini chekladi.");
+function applyUiSettings() {
+  const settings = profile.settings;
+  const emotes = document.getElementById('hud-emotes');
+  if (emotes) {
+    emotes.hidden = !settings.showEmotes;
+    emotes.style.display = settings.showEmotes ? 'flex' : 'none';
   }
-  setTimeout(resizeCanvas, 120);
+
+  const touchControls = document.getElementById('touch-controls');
+  if (touchControls) {
+    const size = Math.max(52, Math.min(88, Number(settings.touchSize) || 68));
+    const opacity = Math.max(30, Math.min(100, Number(settings.touchOpacity) || 75));
+    touchControls.style.setProperty('--user-touch-size', size + 'px');
+    touchControls.style.setProperty('--user-touch-opacity', String(opacity / 100));
+  }
+
+  const values = [
+    ['setting-steering', Number(settings.steeringSensitivity || 1) * 100],
+    ['setting-touch-size', Number(settings.touchSize || 68)],
+    ['setting-touch-opacity', Number(settings.touchOpacity || 75)]
+  ];
+  for (const [id, value] of values) {
+    const input = document.getElementById(id);
+    if (input) input.value = String(value);
+  }
+
+  const steeringValue = document.getElementById('setting-steering-value');
+  const sizeValue = document.getElementById('setting-touch-size-value');
+  const opacityValue = document.getElementById('setting-touch-opacity-value');
+  if (steeringValue) steeringValue.textContent = String(Math.round(Number(settings.steeringSensitivity || 1) * 100)) + '%';
+  if (sizeValue) sizeValue.textContent = String(Number(settings.touchSize || 68)) + ' px';
+  if (opacityValue) opacityValue.textContent = String(Number(settings.touchOpacity || 75)) + '%';
+
+  const sound = document.getElementById('setting-sound-enabled');
+  if (sound) sound.checked = !sfx.muted;
+  const emoteToggle = document.getElementById('setting-show-emotes');
+  if (emoteToggle) emoteToggle.checked = Boolean(settings.showEmotes);
+  const touchToggle = document.getElementById('setting-touch-enabled');
+  if (touchToggle) touchToggle.checked = settings.touchControls !== false;
+
+  const pauseMute = document.getElementById('btn-pause-mute');
+  if (pauseMute) pauseMute.textContent = sfx.muted ? '🔇 Ovoz o‘chiq' : '🔊 Ovoz yoqilgan';
+  if (typeof updateTouchVisibility === 'function') updateTouchVisibility();
 }
 
 function toggleMute() {
   sfx.muted = !sfx.muted;
   profile.settings.muted = sfx.muted;
   saveProfile();
-  document.getElementById('btn-mute').textContent = sfx.muted ? '🔇' : '🔊';
-  document.getElementById('btn-menu-mute').textContent = sfx.muted ? '🔇' : '🔊';
+  applyUiSettings();
+}
+
+function openSettingsFromPause() {
+  if (state.mode !== 'paused') return;
+  state.settingsReturnToPause = true;
+  document.getElementById('pause-screen').classList.remove('active');
+  document.getElementById('menu-screen').classList.add('active');
+  switchTab('settings');
+}
+
+function returnToPauseFromSettings() {
+  if (!state.settingsReturnToPause || state.mode !== 'paused') return;
+  state.settingsReturnToPause = false;
+  syncSettingsNavigationVisibility();
+  document.getElementById('btn-settings-back-pause').hidden = true;
+  document.getElementById('menu-screen').classList.remove('active');
+  document.getElementById('pause-screen').classList.add('active');
 }
 
 function initUI() {
@@ -5830,6 +6078,43 @@ function initUI() {
     if (em) state.floatingEmotes.push({ carId: profile.playerId, icon: em.icon, life: 2.2 });
     if (state.mp.connected) mpSend({ type: 'emote', emoteId: b.dataset.em });
   }));
+
+  // Persisted gameplay, audio and touch-control preferences.
+  const soundToggle = document.getElementById('setting-sound-enabled');
+  soundToggle.addEventListener('change', () => {
+    sfx.muted = !soundToggle.checked;
+    profile.settings.muted = sfx.muted;
+    saveProfile();
+    applyUiSettings();
+  });
+
+  const emoteToggle = document.getElementById('setting-show-emotes');
+  emoteToggle.addEventListener('change', () => {
+    profile.settings.showEmotes = emoteToggle.checked;
+    saveProfile();
+    applyUiSettings();
+  });
+
+  const touchToggle = document.getElementById('setting-touch-enabled');
+  touchToggle.addEventListener('change', () => {
+    profile.settings.touchControls = touchToggle.checked;
+    state.touchVisible = touchToggle.checked;
+    saveProfile();
+    applyUiSettings();
+  });
+
+  const bindSettingRange = (id, key, multiplier = 1) => {
+    const input = document.getElementById(id);
+    input.addEventListener('input', () => {
+      profile.settings[key] = Number(input.value) / multiplier;
+      saveProfile();
+      applyUiSettings();
+    });
+  };
+  bindSettingRange('setting-steering', 'steeringSensitivity', 100);
+  bindSettingRange('setting-touch-size', 'touchSize');
+  bindSettingRange('setting-touch-opacity', 'touchOpacity');
+  applyUiSettings();
 
   // Default public server. Keep a previously selected non-local custom server.
   const savedServerUrl = profile.settings.serverUrl || '';
@@ -5870,12 +6155,18 @@ function initUI() {
     e.target.textContent = state.explodePreview ? 'Yig\'ish (3D)' : 'Qatlamlarni yoyish';
   });
   document.getElementById('btn-start-race').addEventListener('click', () => startRace(null));
-  document.getElementById('btn-mute').addEventListener('click', toggleMute);
-  document.getElementById('btn-menu-mute').addEventListener('click', toggleMute);
   document.getElementById('btn-pause').addEventListener('click', togglePause);
-  document.getElementById('btn-restart').addEventListener('click', () => startRace(null));
+  document.getElementById('btn-pause-mute').addEventListener('click', toggleMute);
+  document.getElementById('btn-pause-settings').addEventListener('click', openSettingsFromPause);
+  document.getElementById('btn-settings-back-pause').addEventListener('click', returnToPauseFromSettings);
   document.getElementById('btn-resume').addEventListener('click', togglePause);
-  document.getElementById('btn-pause-restart').addEventListener('click', () => startRace(null));
+  document.getElementById('btn-pause-restart').addEventListener('click', () => {
+    if (state.raceConfig.isMultiplayer) {
+      showToast('Multiplayer poygani qayta boshlash uchun hostdan revansh (rematch) so‘rang.');
+      return;
+    }
+    startRace(null);
+  });
   document.getElementById('btn-pause-menu').addEventListener('click', returnToMenu);
   document.getElementById('btn-retry-stage').addEventListener('click', () => startRace(null));
   document.getElementById('btn-res-menu').addEventListener('click', returnToMenu);
@@ -5890,13 +6181,6 @@ function initUI() {
     }
     startRace(null);
   });
-  document.getElementById('btn-touch-toggle').addEventListener('click', () => { state.touchVisible = !state.touchVisible; updateTouchVisibility(); });
-  document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreenLandscape);
-  document.getElementById('btn-menu-fullscreen').addEventListener('click', toggleFullscreenLandscape);
-  document.addEventListener('fullscreenchange', () => setTimeout(() => {
-    resizeCanvas();
-    updateTouchVisibility();
-  }, 120));
   window.addEventListener('orientationchange', () => setTimeout(() => {
     resizeCanvas();
     updateTouchVisibility();
