@@ -4333,6 +4333,22 @@ function renderWorld() {
     ctx.fillRect(-1800, tr.y + 6, 3600, 3);
   }
 
+  // 3a. Moving trains are drawn BEFORE the road so every crossing is a true underpass.
+  // Asphalt is rendered afterwards and stays continuous above every locomotive and carriage.
+  for (const tr of track.decorTrains) {
+    const carLen = 58;
+    const gap = 6;
+    for (let c = 0; c < tr.cars; c++) {
+      const cx = tr.x - tr.dir * c * (carLen + gap);
+      for (let l = 0; l < 4; l++) {
+        ctx.fillStyle = l === 0 ? '#111827' : (c === 0 && l === 3 ? '#f8fafc' : tr.color);
+        ctx.fillRect(cx - carLen / 2, tr.y - 13 - l * 3, carLen, 26);
+      }
+      ctx.fillStyle = tr.type === 'highspeed' ? '#38bdf8' : '#fde68a';
+      ctx.fillRect(cx - carLen / 2 + 8, tr.y - 19, carLen - 16, 6);
+    }
+  }
+
   // 4. Road Curbs & Asphalt
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -4407,23 +4423,6 @@ function renderWorld() {
     ctx.fillRect(sk.x - 2, sk.y - 2, 4, 4);
   }
 
-  // 8. Independent Moving Trains (drawn above rails, strictly visual)
-  for (const tr of track.decorTrains) {
-    const carLen = 58;
-    const gap = 6;
-    for (let c = 0; c < tr.cars; c++) {
-      const cx = tr.x - tr.dir * c * (carLen + gap);
-      // 3-layer mini sprite stack for train car
-      for (let l = 0; l < 4; l++) {
-        ctx.fillStyle = l === 0 ? '#111827' : (c === 0 && l === 3 ? '#f8fafc' : tr.color);
-        ctx.fillRect(cx - carLen / 2, tr.y - 13 - l * 3, carLen, 26);
-      }
-      // Windows
-      ctx.fillStyle = tr.type === 'highspeed' ? '#38bdf8' : '#fde68a';
-      ctx.fillRect(cx - carLen / 2 + 8, tr.y - 19, carLen - 16, 6);
-    }
-  }
-
   // 9. Depth-sorted Cars & 8-Slice Trees
   const treeSlices = getTreeSlices(track.theme, isNight);
   const drawList = [];
@@ -4484,28 +4483,128 @@ function renderWorld() {
     }
   }
 
-  // 10. Tunnel Roof Overpasses (semi-transparent cutaway when player is inside so car stays visible!)
+  // 10. Tunnel ceiling, solid side walls, support ribs and entrance portals.
+  // The ceiling becomes a cutaway while the player is inside, but the side walls stay visible.
   const playerCar = state.cars.find(c => c.isPlayer);
   for (const tun of track.tunnels) {
-    const alpha = playerCar && playerCar.inTunnel ? 0.45 : 0.88;
+    const alpha = playerCar && playerCar.inTunnel ? 0.36 : 0.82;
+    const startIdx = tun.startIdx;
+    const endIdx = tun.endIdx;
+
+    // Overhead roof / ceiling. Drawing it after cars gives a convincing tunnel cutaway.
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(S[tun.startIdx].x, S[tun.startIdx].y);
-    for (let i = tun.startIdx + 1; i <= tun.endIdx; i++) {
+    ctx.moveTo(S[startIdx].x, S[startIdx].y);
+    for (let i = startIdx + 1; i <= endIdx; i++) {
       const p = S[i % M];
       ctx.lineTo(p.x, p.y);
     }
-    ctx.strokeStyle = `rgba(15, 23, 42, ${alpha})`;
-    ctx.lineWidth = halfW * 2 + 28;
+    ctx.strokeStyle = \`rgba(15, 23, 42, \${alpha})\`;
+    ctx.lineWidth = halfW * 2 + 34;
     ctx.lineCap = 'butt';
     ctx.stroke();
 
-    // Tunnel interior guide lights
-    ctx.setLineDash([10, 32]);
-    ctx.strokeStyle = `rgba(251, 191, 36, ${alpha * 0.85})`;
+    // Ceiling ribs and warm guide lights.
+    ctx.setLineDash([10, 34]);
+    ctx.strokeStyle = \`rgba(251, 191, 36, \${alpha * 0.9})\`;
     ctx.lineWidth = 4;
     ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
+
+    // Two continuous concrete / rock walls follow the exact road edge normals.
+    for (const side of [-1, 1]) {
+      const wallPath = (offset) => {
+        ctx.beginPath();
+        let started = false;
+        for (let i = startIdx; i <= endIdx; i++) {
+          const p = S[i % M];
+          const x = p.x + p.nx * side * offset;
+          const y = p.y + p.ny * side * offset;
+          if (!started) { ctx.moveTo(x, y); started = true; }
+          else ctx.lineTo(x, y);
+        }
+      };
+
+      ctx.save();
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.shadowColor = 'rgba(0,0,0,0.72)';
+      ctx.shadowBlur = 9;
+
+      wallPath(halfW + 9);
+      ctx.strokeStyle = '#020617';
+      ctx.lineWidth = 30;
+      ctx.stroke();
+
+      wallPath(halfW + 9);
+      const wallGradient = ctx.createLinearGradient(
+        state.cam.x - 90, state.cam.y - 90, state.cam.x + 90, state.cam.y + 90
+      );
+      wallGradient.addColorStop(0, '#64748b');
+      wallGradient.addColorStop(0.45, '#334155');
+      wallGradient.addColorStop(1, '#1e293b');
+      ctx.strokeStyle = wallGradient;
+      ctx.lineWidth = 20;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Inner wall lip and outer top edge make the walls read as solid geometry.
+      wallPath(halfW + 1);
+      ctx.strokeStyle = 'rgba(203,213,225,0.88)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      wallPath(halfW + 19);
+      ctx.strokeStyle = 'rgba(148,163,184,0.72)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Repeated buttresses along both sides prevent the tunnel from looking like a flat stripe.
+    for (let i = startIdx + 5; i < endIdx; i += 14) {
+      const p = S[i % M];
+      for (const side of [-1, 1]) {
+        const wx = p.x + p.nx * side * (halfW + 8);
+        const wy = p.y + p.ny * side * (halfW + 8);
+        ctx.save();
+        ctx.translate(wx, wy);
+        ctx.rotate(p.angle);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(-5, -10, 10, 20);
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(-4, -9, 2, 18);
+        ctx.fillStyle = 'rgba(226,232,240,0.38)';
+        ctx.fillRect(-5, -10, 10, 2);
+        ctx.restore();
+      }
+    }
+
+    // Portal frames at both ends: unmistakable tunnel entrance and exit.
+    for (const portalIdx of [startIdx, endIdx]) {
+      const p = S[portalIdx % M];
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.lineCap = 'square';
+      ctx.beginPath();
+      ctx.moveTo(0, -halfW - 18);
+      ctx.lineTo(0, halfW + 18);
+      ctx.strokeStyle = '#020617';
+      ctx.lineWidth = 15;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -halfW - 15);
+      ctx.lineTo(0, halfW + 15);
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(-7, -halfW - 22, 14, 10);
+      ctx.fillRect(-7, halfW + 12, 14, 10);
+      ctx.restore();
+    }
   }
 
   // 11. Particles & Floating Emotes
