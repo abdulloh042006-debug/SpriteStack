@@ -274,6 +274,27 @@ async function runAll() {
     assert.ok(Math.abs(sh.y - (startShipY + sh.dir * sh.speed * 0.1)) < 0.001, 'Car altered ship movement!');
   });
 
+  await test('Tunnel walls and railway underpasses keep correct visual depth order', () => {
+    const mountain = buildTrackGeometry(TRACKS[2]);
+    assert.ok(mountain.tunnels.length > 0, 'Mountain track should have a tunnel');
+    const tunnel = mountain.tunnels[0];
+    assert.ok(mountain.samples[tunnel.startIdx].inTunnel, 'Tunnel start sample must be marked');
+    assert.ok(mountain.samples[tunnel.endIdx].inTunnel, 'Tunnel end sample must be marked');
+
+    const desert = buildTrackGeometry(TRACKS[5]);
+    assert.ok(desert.decorTrains.length > 0, 'Desert track should include its train');
+    const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src/app.js');
+    const appSource = fs.readFileSync(appPath, 'utf8');
+    const trainLayer = appSource.indexOf('// 3a. Moving trains are drawn BEFORE the road');
+    const roadLayer = appSource.indexOf('// 4. Road Curbs & Asphalt');
+    const tunnelLayer = appSource.indexOf('// 10. Tunnel ceiling, solid side walls, support ribs and entrance portals');
+    assert.ok(trainLayer >= 0 && trainLayer < roadLayer, 'Moving train sprites must render below the road layer');
+    assert.ok(tunnelLayer > roadLayer, 'Tunnel walls and ceiling must render after the road is laid down');
+    for (const feature of ['wallPath', 'Repeated buttresses', 'Portal frames at both ends']) {
+      assert.ok(appSource.includes(feature), 'Tunnel geometry missing: ' + feature);
+    }
+  });
+
   console.log('\n=== D. REAL 4-CLIENT CONCURRENT WEBSOCKET MULTIPLAYER ===');
   const mpServer = createMultiplayerServer({ port: 0, enableUdp: false });
   const port = await mpServer.start();
