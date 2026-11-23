@@ -2166,31 +2166,149 @@ function getCarClassFromPR(pr) {
   return 'S';
 }
 
-function inferVisualProfile(bodyStr, fuelStr, hp, cls) {
-  const b = (bodyStr || '').toLowerCase();
-  const f = (fuelStr || '').toLowerCase();
-  if (b.includes('van') || b.includes('mpv') || b.includes('minivan')) {
-    return { shape: 'microvan', grille: 'dark_quad', lights: 'rect_2', rear: 'classic_bar', wing: false, stripe: false, detail: 'standard' };
+function inferVisualProfile(bodyStr, fuelStr, hp, cls, modelStr = '', brandStr = '', generationStr = '', modStr = '', uniqueId = '') {
+  const body = String(bodyStr || '').toLowerCase();
+  const fuel = String(fuelStr || '').toLowerCase();
+  const model = String(modelStr || '').toLowerCase();
+  const brand = String(brandStr || '').toLowerCase();
+  const identity = [brand, model, generationStr, modStr, uniqueId].join(' ').toLowerCase();
+  const electric = /electric|bev|phev|hybrid|ev\b/.test(fuel + ' ' + identity);
+  const classic = /lada|vaz|avtovaz|moskvich|gaz\b|uaz|volga|zhiguli/.test(identity);
+  const isOffRoad = /niva|defender|wrangler|land cruiser|landcruiser|patrol|g.class|gelandewagen|bronco|uaz|pajero/.test(identity);
+  const isPickup = /pickup|pick-up|truck|labo|hilux|ranger|tacoma|navara|tundra|ram\b|f.150|s10\b/.test(body + ' ' + identity);
+  const isVan = /van|mpv|minivan|microbus|people carrier|minibus/.test(body + ' ' + identity);
+  const isSuv = /suv|crossover|off.?road|utility/.test(body) ||
+    /suv|crossover|jeep|highlander|tucson|sportage|sorento|rav4|cr.v|x5\b|x3\b|x7\b|gle\b|glc\b|gla\b|gls\b|q5\b|q7\b|q8\b|urus|purosangue|model x|model y|seal u|song|tang|tucson|santa fe/.test(identity);
+  const isWagon = /wagon|estate|touring|avant|variant|combi|sport.?tourer/.test(body + ' ' + identity);
+  const isConvertible = /convertible|cabrio|cabriolet|roadster|spyder|spider/.test(body + ' ' + identity);
+  const isCoupe = /coupe|gt.?r\b|supra|mustang|camaro|challenger|corvette|911|ferrari|lamborghini|huracan|aventador|mclaren|bugatti|aston martin|maserati|koenigsegg|amg gt|gr86|brz|mx.5|miata/.test(body + ' ' + identity);
+  const isHatch = /hatch|city car|compact/.test(body) ||
+    /golf|polo|gti|swift|fiesta|focus rs|mini cooper|corsa|clio|yaris|i20|i30|ceed|rio|matiz|spark|picanto|micra|leaf|zoe/.test(identity);
+
+  let shape = 'compact_sedan';
+  if (isPickup) shape = 'mini_pickup';
+  else if (isVan) shape = 'microvan';
+  else if (isOffRoad) shape = 'niva_4x4';
+  else if (isSuv) shape = 'suv';
+  else if (isWagon) shape = 'long_sedan';
+  else if (isConvertible || isCoupe) shape = 'gtr_coupe';
+  else if (isHatch) shape = 'micro_hatch';
+  else if (classic && /2101|2103|2105|2106|2107|moskvich|volga/.test(identity)) shape = 'boxy_sedan';
+  else if (/long|executive|luxury|limousine/.test(body + ' ' + identity)) shape = 'long_sedan';
+  else if (electric) shape = 'ev_sedan';
+
+  const brandRules = [
+    [/bmw|mini/, 'bmw'],
+    [/mercedes|benz|maybach/, 'mercedes'],
+    [/audi/, 'audi'],
+    [/lexus/, 'lexus'],
+    [/kia/, 'kia'],
+    [/hyundai|genesis/, 'hyundai'],
+    [/chevrolet|chevy|ravon|daewoo/, 'chevrolet'],
+    [/toyota/, 'toyota'],
+    [/honda|acura/, 'honda'],
+    [/nissan|infiniti/, 'nissan'],
+    [/ford|lincoln/, 'ford'],
+    [/volkswagen|\bvw\b|skoda/, 'volkswagen'],
+    [/porsche/, 'porsche'],
+    [/ferrari/, 'ferrari'],
+    [/lamborghini/, 'lamborghini'],
+    [/tesla|byd|xiaomi|rivian|nio|zeekr|polestar/, 'electric'],
+    [/mazda/, 'mazda'],
+    [/subaru/, 'subaru'],
+    [/volvo|polestar/, 'volvo']
+  ];
+  let brandStyle = 'generic';
+  for (const rule of brandRules) {
+    if (rule[0].test(brand)) { brandStyle = rule[1]; break; }
   }
-  if (b.includes('pickup') || b.includes('truck')) {
-    return { shape: 'mini_pickup', grille: 'dark_quad', lights: 'rect_2', rear: 'classic_bar', wing: false, stripe: false, detail: 'standard' };
+
+  let hash = 2166136261;
+  const seed = identity || body;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  if (b.includes('suv') || b.includes('crossover') || b.includes('off-road')) {
-    return { shape: 'suv', grille: 'wide_mesh', lights: 'angular_led', rear: 'led_bar', wing: false, stripe: false, detail: 'high' };
-  }
-  if (cls === 'S' || (hp && hp >= 560)) {
-    return { shape: 'ferrari_488', grille: 'super_intake', lights: 'angular_led', rear: 'led_bar', wing: true, stripe: false, detail: 'special' };
-  }
-  if (b.includes('coupe') || b.includes('roadster') || b.includes('cabrio') || b.includes('convertible') || cls === 'A') {
-    return { shape: 'gtr_coupe', grille: 'super_intake', lights: 'angular_led', rear: 'led_bar', wing: cls === 'A', stripe: false, detail: 'high' };
-  }
-  if (f.includes('electric') || f.includes('bev') || f.includes('phev')) {
-    return { shape: 'ev_sedan', grille: 'ev_clean', lights: 'angular_led', rear: 'led_bar', wing: false, stripe: false, detail: 'high' };
-  }
-  if (b.includes('hatch') || b.includes('city') || b.includes('mini')) {
-    return { shape: 'micro_hatch', grille: 'chevy_dual', lights: 'rect_2', rear: 'wide_red', wing: false, stripe: false, detail: 'standard' };
-  }
-  return { shape: 'compact_sedan', grille: 'chevy_dual', lights: 'rect_2', rear: 'wide_red', wing: false, stripe: false, detail: 'standard' };
+  hash >>>= 0;
+
+  const grilleByBrand = {
+    bmw: 'bmw_kidney', mercedes: 'mercedes_star', audi: 'audi_singleframe',
+    lexus: 'lexus_spindle', kia: 'kia_tiger', hyundai: 'hyundai_parametric',
+    chevrolet: 'chevy_dual', toyota: 'toyota_wide', honda: 'honda_wing',
+    nissan: 'nissan_vmotion', ford: 'ford_trapezoid', volkswagen: 'vw_horizontal',
+    porsche: 'porsche_oval', ferrari: 'ferrari_mesh', lamborghini: 'lambo_hex',
+    electric: 'ev_closed', mazda: 'mazda_wing', subaru: 'subaru_hex',
+    volvo: 'volvo_ironmark', generic: electric ? 'ev_closed' : 'wide_mesh'
+  };
+  const grille = classic
+    ? (/2106|2103/.test(identity) ? 'dark_quad' : 'chrome_slats')
+    : (grilleByBrand[brandStyle] || (electric ? 'ev_closed' : 'wide_mesh'));
+
+  const lightByBrand = {
+    bmw: 'matrix_led', mercedes: 'slim_led', audi: 'matrix_led',
+    lexus: 'angular_led', kia: 'boomerang_led', hyundai: 'slim_led',
+    chevrolet: 'rect_2', toyota: 'angular_led', honda: 'slim_led',
+    nissan: 'boomerang_led', ford: 'matrix_led', volkswagen: 'slim_led',
+    porsche: 'round_2', ferrari: 'slim_led', lamborghini: 'angular_led',
+    electric: 'slim_led', mazda: 'slim_led', subaru: 'angular_led',
+    volvo: 'thor_led', generic: 'rect_2'
+  };
+  const lights = classic
+    ? (/2106|2103/.test(identity) ? 'round_4' : 'round_2')
+    : (lightByBrand[brandStyle] || 'rect_2');
+
+  const rearByBrand = {
+    bmw: 'led_bar', mercedes: 'wraparound', audi: 'led_bar',
+    lexus: 'l_shape', kia: 'led_bar', hyundai: 'led_bar',
+    chevrolet: 'wide_red', toyota: 'wide_red', honda: 'c_shape',
+    nissan: 'boomerang', ford: 'wide_red', volkswagen: 'wide_red',
+    porsche: 'led_bar', ferrari: 'quad_round', lamborghini: 'angular_red',
+    electric: 'led_bar', mazda: 'wraparound', subaru: 'c_shape',
+    volvo: 'vertical', generic: 'wide_red'
+  };
+  const rear = classic ? 'classic_bar' : (rearByBrand[brandStyle] || 'wide_red');
+
+  const suvBase = isSuv || isOffRoad;
+  const coupeBase = isCoupe || isConvertible;
+  const hatchBase = isHatch;
+  const vanBase = isVan;
+  const pickupBase = isPickup;
+  const bodyWidth = (suvBase ? 16 : coupeBase ? 16 : vanBase || pickupBase ? 14 : hatchBase ? 14 : 14) +
+    ((((hash >>> 3) % 3) - 1) * 2);
+  const frontTaper = classic || isOffRoad || vanBase || pickupBase ? 0.25 :
+    (coupeBase ? 2.5 : hatchBase ? 1.7 : suvBase ? 0.8 : 1.2) + (((hash >>> 8) % 3) * 0.25);
+  const rearTaper = classic || vanBase || pickupBase ? 0.25 :
+    (coupeBase ? 1.8 : hatchBase ? 2.0 : suvBase ? 0.7 : isWagon ? 0.9 : 1.35) + (((hash >>> 11) % 3) * 0.25);
+  const cabinFront = pickupBase ? 0.14 : vanBase ? 0.08 : coupeBase ? 0.30 : hatchBase ? 0.24 : 0.25;
+  const cabinRear = pickupBase ? 0.50 : vanBase ? 0.90 : suvBase ? 0.77 : coupeBase ? 0.70 : isWagon ? 0.82 : 0.76;
+  const cabinWidth = vanBase ? 0.78 : suvBase ? 0.72 : coupeBase ? 0.58 : hatchBase ? 0.66 : 0.64;
+
+  return {
+    shape, grille, lights, rear,
+    wing: (coupeBase && (cls === 'A' || cls === 'S' || hp >= 420)) || /gt.?wing|spoiler/.test(model),
+    stripe: false,
+    detail: cls === 'S' ? 'special' : (cls === 'A' || hp >= 350 ? 'high' : 'standard'),
+    signature: brandStyle,
+    modelHash: hash,
+    bodyWidth: Math.max(12, Math.min(16, bodyWidth)),
+    frontTaper: Math.max(0, Math.min(2.8, frontTaper)),
+    rearTaper: Math.max(0, Math.min(2.6, rearTaper)),
+    cabinFront,
+    cabinRear,
+    cabinWidth,
+    frontAxle: pickupBase ? 0.25 : 0.24 + ((hash >>> 15) % 3) * 0.01,
+    rearAxle: pickupBase ? 0.76 : 0.75 + ((hash >>> 18) % 3) * 0.01,
+    wheelLength: suvBase ? 6 : coupeBase ? 4 : 5,
+    roofStyle: vanBase ? 'flat' : coupeBase ? 'fastback' : (electric ? 'panoramic' : 'standard'),
+    roofRails: suvBase && ((hash >>> 22) % 2 === 0),
+    electric,
+    isWagon,
+    isConvertible,
+    isPickup: pickupBase,
+    isVan: vanBase,
+    isSUV: suvBase,
+    isCoupe: coupeBase
+  };
 }
 
 function classToMinLevel(cls) {
@@ -2245,7 +2363,7 @@ function mapWorldRowToVehicle(r, tables) {
     basePR,
     maxPR,
     defaultColor,
-    visualProfile: inferVisualProfile(body, fuel, hp, cls),
+    visualProfile: inferVisualProfile(body, fuel, hp, cls, model, brand, gen, mod, id),
     price,
     minLevel: classToMinLevel(cls),
     gameStats: {
@@ -2925,277 +3043,372 @@ function purchaseVehicleUpgrade(profile, vehicle, partId) {
    ========================================================================= */
 
 const spriteCache = new Map();
+
+function buildCarVisualStyle(vehicle, vp) {
+  const brand = String(vehicle.brand || '').toLowerCase();
+  const name = String(vehicle.name || '').toLowerCase();
+  const shape = String(vp.shape || 'compact_sedan');
+  const identity = [brand, name, vehicle.generation || '', shape].join(' ').toLowerCase();
+  let hash = 2166136261;
+  for (let i = 0; i < identity.length; i++) {
+    hash ^= identity.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  hash >>>= 0;
+
+  const isMicro = ['micro_hatch', 'micro_round', 'micro_ev'].includes(shape);
+  const isVan = shape === 'microvan' || vp.isVan === true;
+  const isPickup = shape === 'mini_pickup' || vp.isPickup === true;
+  const isSUV = ['suv', 'niva_4x4', 'offroad_suv'].includes(shape) || vp.isSUV === true;
+  const isSuper = ['ferrari_f40', 'ferrari_488', 'porsche_911', 'gtr_coupe', 'lambo_wedge', 'sports_coupe', 'fastback_coupe', 'roadster'].includes(shape) || vp.isCoupe === true;
+  const isLong = ['long_sedan', 'malibu', 'luxury_sedan', 'wagon'].includes(shape) || vp.isWagon === true;
+  const isBoxy = ['boxy_sedan', 'niva_4x4'].includes(shape) || isVan || isPickup;
+  const isHatch = ['micro_hatch', 'micro_round', 'compact_hatch'].includes(shape);
+  const isEV = vp.electric === true || ['ev_sedan', 'micro_ev'].includes(shape) || /tesla|byd|xiaomi|polestar|rivian|nio|zeekr/.test(identity);
+
+  const brandGrille = [
+    [/bmw|mini/, 'bmw_kidney'], [/mercedes|benz|maybach/, 'mercedes_star'],
+    [/audi/, 'audi_singleframe'], [/lexus/, 'lexus_spindle'],
+    [/kia/, 'kia_tiger'], [/hyundai|genesis/, 'hyundai_parametric'],
+    [/chevrolet|chevy|ravon|daewoo/, 'chevy_dual'], [/toyota/, 'toyota_wide'],
+    [/honda|acura/, 'honda_wing'], [/nissan|infiniti/, 'nissan_vmotion'],
+    [/ford|lincoln/, 'ford_trapezoid'], [/volkswagen|\bvw\b|skoda/, 'vw_horizontal'],
+    [/porsche/, 'porsche_oval'], [/ferrari/, 'ferrari_mesh'],
+    [/lamborghini/, 'lambo_hex'], [/tesla|byd|xiaomi|polestar|rivian|nio|zeekr/, 'ev_closed'],
+    [/mazda/, 'mazda_wing'], [/subaru/, 'subaru_hex'], [/volvo/, 'volvo_ironmark']
+  ];
+  let makeGrille = '';
+  for (const rule of brandGrille) { if (rule[0].test(identity)) { makeGrille = rule[1]; break; } }
+
+  const brandLights = [
+    [/bmw|audi|ford/, 'matrix_led'], [/mercedes|hyundai|honda|volkswagen|skoda/, 'slim_led'],
+    [/kia|nissan/, 'boomerang_led'], [/lamborghini|lexus|toyota|subaru/, 'angular_led'],
+    [/porsche/, 'round_2'], [/ferrari/, 'slim_led'], [/tesla|byd|xiaomi|polestar|rivian|nio|zeekr/, 'slim_led']
+  ];
+  let makeLights = '';
+  for (const rule of brandLights) { if (rule[0].test(identity)) { makeLights = rule[1]; break; } }
+
+  const brandRear = [
+    [/bmw|audi|kia|hyundai|porsche/, 'led_bar'], [/mercedes|mazda/, 'wraparound'],
+    [/lexus/, 'l_shape'], [/honda|subaru/, 'c_shape'], [/volvo/, 'vertical'],
+    [/lamborghini/, 'angular_red'], [/ferrari/, 'quad_round'],
+    [/tesla|byd|xiaomi|polestar|rivian|nio|zeekr/, 'led_bar']
+  ];
+  let makeRear = '';
+  for (const rule of brandRear) { if (rule[0].test(identity)) { makeRear = rule[1]; break; } }
+
+  const bodyWidthBase = isSUV ? 16 : (isSuper ? 16 : (isMicro ? 12 : 14));
+  const bodyWidth = Number(vp.bodyWidth) || Math.max(12, Math.min(16, bodyWidthBase + ((((hash >>> 3) % 3) - 1) * 2)));
+  const frontTaper = Number.isFinite(vp.frontTaper) ? vp.frontTaper :
+    (isBoxy ? 0.2 : isSuper ? 2.4 : isHatch ? 1.8 : isSUV ? 0.8 : 1.25) + (((hash >>> 8) % 3) * 0.22);
+  const rearTaper = Number.isFinite(vp.rearTaper) ? vp.rearTaper :
+    (isBoxy ? 0.2 : isSuper ? 1.9 : isHatch ? 1.9 : isSUV ? 0.65 : 1.35) + (((hash >>> 11) % 3) * 0.22);
+
+  return {
+    shape, isMicro, isVan, isPickup, isSUV, isSuper, isLong, isBoxy, isHatch, isEV,
+    grille: vp.grille || makeGrille || (isEV ? 'ev_closed' : 'wide_mesh'),
+    lights: vp.lights || makeLights || 'rect_2',
+    rear: vp.rear || makeRear || 'wide_red',
+    bodyWidth,
+    frontTaper: Math.max(0, Math.min(2.8, frontTaper)),
+    rearTaper: Math.max(0, Math.min(2.8, rearTaper)),
+    cabinFront: Number.isFinite(vp.cabinFront) ? vp.cabinFront : (isPickup ? 0.14 : isVan ? 0.08 : isSuper ? 0.30 : isHatch ? 0.24 : 0.25),
+    cabinRear: Number.isFinite(vp.cabinRear) ? vp.cabinRear : (isPickup ? 0.50 : isVan ? 0.90 : isSUV ? 0.77 : isSuper ? 0.70 : isLong ? 0.82 : 0.76),
+    cabinWidth: Number.isFinite(vp.cabinWidth) ? vp.cabinWidth : (isVan ? 0.78 : isSUV ? 0.72 : isSuper ? 0.58 : isHatch ? 0.66 : 0.64),
+    frontAxle: Number.isFinite(vp.frontAxle) ? vp.frontAxle : 0.25,
+    rearAxle: Number.isFinite(vp.rearAxle) ? vp.rearAxle : 0.75,
+    wheelLength: Number(vp.wheelLength) || (isSUV ? 6 : isSuper ? 4 : 5),
+    roofStyle: vp.roofStyle || (isVan ? 'flat' : isSuper ? 'fastback' : (isEV ? 'panoramic' : 'standard')),
+    roofRails: vp.roofRails === true || (isSUV && (hash >>> 22) % 2 === 0),
+    signature: vp.signature || (makeGrille ? makeGrille : 'generic'),
+    isConvertible: vp.isConvertible === true,
+    hasStripe: Boolean(vp.stripe)
+  };
+}
 function generateCarSlices(vehicle, colorKey, tuning = {}) {
-  const vp = vehicle.visualProfile || { shape: 'compact_sedan', grille: 'chevy_dual', lights: 'rect_2', rear: 'wide_red', wing: false, stripe: false };
+  const vp = vehicle.visualProfile || {};
+  const style = buildCarVisualStyle(vehicle, vp);
   const rimStyle = tuning.rimStyle || 'sport';
   const spoilerOpt = tuning.spoiler || 'stock';
-  const hasStripe = tuning.stripe !== undefined ? Boolean(tuning.stripe || vp.stripe) : Boolean(vp.stripe);
-  const hasWing = spoilerOpt === 'gt_wing' || (spoilerOpt === 'stock' && vp.wing);
-
-  const cacheKey = `${vehicle.id}_${colorKey}_${rimStyle}_${hasStripe}_${hasWing}`;
+  const hasStripe = tuning.stripe !== undefined ? Boolean(tuning.stripe || style.hasStripe) : style.hasStripe;
+  const hasWing = spoilerOpt === 'gt_wing' || (spoilerOpt === 'stock' && vp.wing === true);
+  const cacheKey = [vehicle.id, colorKey, rimStyle, hasStripe, hasWing].join('_');
   if (spriteCache.has(cacheKey)) return spriteCache.get(cacheKey);
 
   const pal = CAR_COLORS[colorKey] || CAR_COLORS.rosso;
-  const W = 18;
-  const H = 34;
-  const SLICES = 15;
+  const W = 18, H = 34, SLICES = 15;
   const slices = [];
-
-  const shape = vp.shape;
-  const isMicro = shape === 'micro_hatch' || shape === 'micro_round' || shape === 'micro_ev';
-  const isVan = shape === 'microvan';
-  const isPickup = shape === 'mini_pickup';
-  const isSUV = shape === 'suv' || shape === 'niva_4x4';
-  const isSuper = ['ferrari_f40', 'ferrari_488', 'porsche_911', 'gtr_coupe', 'lambo_wedge'].includes(shape);
-  const isLong = shape === 'long_sedan' || shape === 'malibu';
-  const isBoxy = shape === 'boxy_sedan' || shape === 'niva_4x4' || isVan || isPickup;
-
-  // Vehicle proportions within 18x34 pixel grid
-  const yStart = isMicro ? 5 : (isLong ? 1 : 2);
-  const yEnd = isMicro ? H - 5 : (isLong ? H - 1 : H - 2);
+  const yStart = style.isMicro ? 5 : (style.isLong || style.isSuper ? 1 : 2);
+  const yEnd = style.isMicro ? H - 5 : (style.isLong ? H - 1 : H - 2);
   const bodyH = yEnd - yStart;
-  const xPad = isVan || isPickup ? 3 : (isSuper ? 1 : 2);
+  const xPad = Math.max(1, Math.floor((W - style.bodyWidth) / 2));
   const bodyW = W - xPad * 2;
-
+  const frontWheelY = yStart + Math.round(bodyH * style.frontAxle);
+  const rearWheelY = yStart + Math.round(bodyH * style.rearAxle);
+  const wheelH = Math.max(4, Math.min(6, style.wheelLength));
   const rimColor = rimStyle === 'gold' ? '#facc15' : (rimStyle === 'black' ? '#334155' : (rimStyle === 'chrome' ? '#e2e8f0' : '#94a3b8'));
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
   for (let z = 0; z < SLICES; z++) {
     const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
+    c.width = W; c.height = H;
     const g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
 
     const px = (x, y, col) => {
+      x = Math.round(x); y = Math.round(y);
       if (x < 0 || x >= W || y < 0 || y >= H) return;
-      g.fillStyle = col;
-      g.fillRect(x, y, 1, 1);
+      g.fillStyle = col; g.fillRect(x, y, 1, 1);
     };
     const rect = (x, y, w, h, col) => {
+      x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
       if (w <= 0 || h <= 0) return;
-      g.fillStyle = col;
-      g.fillRect(x, y, w, h);
+      g.fillStyle = col; g.fillRect(x, y, w, h);
+    };
+    const taperAt = (t) => {
+      let taper = 0;
+      if (t < 0.18) taper += style.frontTaper * (1 - t / 0.18);
+      if (t > 0.82) taper += style.rearTaper * ((t - 0.82) / 0.18);
+      return clamp(Math.round(taper), 0, Math.max(0, Math.floor((bodyW - 5) / 2)));
+    };
+    const fillBodyRows = (color, fromY, toY, extraInset = 0) => {
+      const span = Math.max(1, toY - fromY - 1);
+      for (let yy = fromY; yy < toY; yy++) {
+        const t = (yy - fromY) / span;
+        const inset = taperAt(t) + extraInset;
+        const xx = xPad + inset;
+        const ww = bodyW - inset * 2;
+        rect(xx, yy, ww, 1, color);
+      }
     };
 
-    const fwY = yStart + 3;
-    const rwY = yEnd - 9;
-
-    // Slices 0-1: Tires & ground underbody
+    // Layer 0-1: tires and low chassis. Wheelbase is model-specific.
     if (z <= 1) {
-      const tireCol = z === 0 ? '#0b0d11' : '#171b24';
-      rect(xPad - 1, fwY, 2, 6, tireCol);
-      rect(W - xPad - 1, fwY, 2, 6, tireCol);
-      rect(xPad - 1, rwY, 2, 6, tireCol);
-      rect(W - xPad - 1, rwY, 2, 6, tireCol);
-      if (z === 1) {
-        rect(xPad + 1, yStart + 2, bodyW - 2, bodyH - 4, '#13161e');
+      const tire = z === 0 ? '#090c12' : '#1b202a';
+      for (const wy of [frontWheelY, rearWheelY]) {
+        rect(xPad - 1, wy - Math.floor(wheelH / 2), 2, wheelH, tire);
+        rect(W - xPad - 1, wy - Math.floor(wheelH / 2), 2, wheelH, tire);
+        if (z === 1) {
+          px(xPad - 1, wy - 1, rimColor); px(xPad - 1, wy, rimColor);
+          px(W - xPad, wy - 1, rimColor); px(W - xPad, wy, rimColor);
+        }
       }
+      if (z === 1) fillBodyRows('#131923', yStart + 2, yEnd - 2, 1);
     }
 
-    // Slices 2-3: Lower chassis, wheel wells, bumpers, grilles, exhausts
+    // Layer 2-3: chassis, wheel arches, bumper and make-specific grille.
     else if (z <= 3) {
-      const col = z === 2 ? pal.trim : pal.dark;
-      rect(xPad, yStart + 1, bodyW, bodyH - 2, col);
-      if (!isBoxy) {
-        rect(xPad + 1, yStart, bodyW - 2, 1, col);
-        rect(xPad + 1, yEnd - 1, bodyW - 2, 1, col);
-      } else {
-        rect(xPad, yStart, bodyW, 1, col);
-        rect(xPad, yEnd - 1, bodyW, 1, col);
+      fillBodyRows(z === 2 ? pal.trim : pal.dark, yStart + 1, yEnd - 1, z === 2 ? 0 : 0.25);
+      for (const wy of [frontWheelY, rearWheelY]) {
+        rect(xPad - 1, wy - Math.floor(wheelH / 2), 2, wheelH, '#111721');
+        rect(W - xPad - 1, wy - Math.floor(wheelH / 2), 2, wheelH, '#111721');
       }
+      rect(xPad + 1, yStart, bodyW - 2, 1, pal.trim);
+      rect(xPad + 1, yEnd - 1, bodyW - 2, 1, pal.trim);
 
-      // Wheels + rims
-      rect(xPad - 1, fwY, 2, 6, '#151921');
-      rect(W - xPad - 1, fwY, 2, 6, '#151921');
-      rect(xPad - 1, rwY, 2, 6, '#151921');
-      rect(W - xPad - 1, rwY, 2, 6, '#151921');
-      px(xPad - 1, fwY + 2, rimColor); px(xPad - 1, fwY + 3, rimColor);
-      px(W - xPad, fwY + 2, rimColor); px(W - xPad, fwY + 3, rimColor);
-      px(xPad - 1, rwY + 2, rimColor); px(xPad - 1, rwY + 3, rimColor);
-      px(W - xPad, rwY + 2, rimColor); px(W - xPad, rwY + 3, rimColor);
-
-      // Front grille per model
-      if (vp.grille === 'chrome_slats' || vp.grille === 'chrome_big') {
-        rect(5, yStart, W - 10, 1, '#cbd5e1');
-        if (vp.grille === 'chrome_big') rect(6, yStart, W - 12, 2, '#e2e8f0');
-      } else if (vp.grille === 'chevy_dual' || vp.grille === 'chevy_wide' || vp.grille === 'n150_chrome') {
-        rect(4, yStart, W - 8, 1, '#1e293b');
-        rect(6, yStart, W - 12, 1, '#94a3b8');
-      } else if (vp.grille === 'ev_closed') {
-        rect(5, yStart, W - 10, 1, pal.light);
-      } else {
-        rect(4, yStart, W - 8, 1, '#0f172a');
-      }
-
-      // Exhaust tips
-      if (shape === 'ferrari_f40') {
-        px(6, yEnd - 1, '#e2e8f0'); px(8, yEnd - 1, '#e2e8f0'); px(10, yEnd - 1, '#e2e8f0');
-      } else if (vp.grille !== 'ev_closed') {
-        px(5, yEnd - 1, '#cbd5e1');
-        if (isSuper || isLong) px(W - 6, yEnd - 1, '#cbd5e1');
+      if (z === 3) {
+        const gy = yStart;
+        const center = Math.floor(W / 2);
+        const dark = '#0b1220';
+        const chrome = '#cbd5e1';
+        const grille = style.grille;
+        if (grille === 'chrome_slats' || grille === 'chrome_big') {
+          rect(xPad + 3, gy, Math.max(2, bodyW - 6), 1, chrome);
+          if (grille === 'chrome_big') rect(xPad + 4, gy + 1, Math.max(2, bodyW - 8), 1, '#e2e8f0');
+        } else if (grille === 'dark_quad') {
+          rect(xPad + 2, gy, bodyW - 4, 2, dark);
+          px(center - 2, gy, chrome); px(center + 1, gy, chrome);
+        } else if (grille === 'bmw_kidney') {
+          rect(center - 3, gy, 2, 2, '#0b1720'); rect(center + 1, gy, 2, 2, '#0b1720');
+          px(center - 2, gy, '#94a3b8'); px(center + 1, gy, '#94a3b8');
+        } else if (grille === 'mercedes_star') {
+          rect(center - 3, gy, 6, 1, '#111827'); px(center, gy + 1, '#e2e8f0');
+          px(center - 1, gy, '#cbd5e1'); px(center + 1, gy, '#cbd5e1');
+        } else if (grille === 'audi_singleframe' || grille === 'porsche_oval') {
+          rect(center - 3, gy, 6, 2, '#0b1220');
+          rect(center - 2, gy, 4, 1, '#64748b');
+        } else if (grille === 'lexus_spindle' || grille === 'lambo_hex') {
+          rect(center - 2, gy, 4, 2, '#0b1220');
+          px(center - 3, gy, '#94a3b8'); px(center + 2, gy, '#94a3b8');
+        } else if (grille === 'kia_tiger' || grille === 'hyundai_parametric' || grille === 'mazda_wing') {
+          rect(xPad + 2, gy, bodyW - 4, 1, dark);
+          px(xPad + 2, gy + 1, chrome); px(W - xPad - 3, gy + 1, chrome);
+        } else if (grille === 'nissan_vmotion' || grille === 'ford_trapezoid') {
+          rect(center - 4, gy, 8, 1, dark); px(center - 4, gy + 1, chrome); px(center + 3, gy + 1, chrome);
+        } else if (grille === 'vw_horizontal' || grille === 'toyota_wide' || grille === 'volvo_ironmark') {
+          rect(xPad + 2, gy, bodyW - 4, 1, chrome); rect(xPad + 3, gy + 1, bodyW - 6, 1, dark);
+        } else if (grille === 'subaru_hex' || grille === 'ferrari_mesh' || grille === 'wide_mesh' || grille === 'super_intake') {
+          rect(center - 3, gy, 6, 2, dark); px(center - 2, gy + 1, chrome); px(center + 2, gy + 1, chrome);
+        } else if (grille === 'chevy_dual' || grille === 'chevy_wide' || grille === 'n150_chrome') {
+          rect(xPad + 2, gy, bodyW - 4, 1, dark); rect(xPad + 4, gy + 1, bodyW - 8, 1, '#94a3b8');
+        } else if (grille === 'ev_closed') {
+          rect(xPad + 3, gy, bodyW - 6, 2, pal.light);
+        } else {
+          rect(xPad + 2, gy, bodyW - 4, 1, dark);
+        }
       }
     }
 
-    // Slices 4-7: Main body shell, headlights, taillights, side intakes, pickup bed
+    // Layer 4-7: distinct body outline, lamps, hood, side lines and rear treatment.
     else if (z <= 7) {
       const bodyCol = z <= 5 ? pal.main : pal.light;
       const sideCol = z <= 5 ? pal.dark : pal.main;
-      rect(xPad, yStart + 1, bodyW, bodyH - 2, bodyCol);
-      rect(xPad + 1, yStart, bodyW - 2, 1, bodyCol);
-      rect(xPad + 1, yEnd - 1, bodyW - 2, 1, bodyCol);
-      rect(xPad, yStart + 2, 1, bodyH - 4, sideCol);
-      rect(W - xPad - 1, yStart + 2, 1, bodyH - 4, sideCol);
+      fillBodyRows(bodyCol, yStart + 1, yEnd - 1, 0);
+      const midY = Math.round((yStart + yEnd) / 2);
+      rect(xPad, yStart + 3, 1, Math.max(1, bodyH - 6), sideCol);
+      rect(W - xPad - 1, yStart + 3, 1, Math.max(1, bodyH - 6), sideCol);
 
-      if (hasStripe) {
-        rect(7, yStart, 4, bodyH, '#f8fafc');
-      }
-
-      // Pickup open cargo bed (Labo)
-      if (isPickup && z >= 5) {
-        rect(xPad + 1, yStart + 11, bodyW - 2, bodyH - 13, z === 5 ? '#334155' : '#1e293b');
-      }
-
-      // Side intakes for supercars
-      if (isSuper && (z === 5 || z === 6)) {
-        rect(xPad, yStart + 14, 1, 6, '#0f172a');
-        rect(W - xPad - 1, yStart + 14, 1, 6, '#0f172a');
-      }
-
-      // Headlights (z=4..5)
-      if (z === 4 || z === 5) {
-        if (vp.lights === 'round_4') {
-          px(xPad + 1, yStart, '#fef08a'); px(xPad + 3, yStart, '#fef08a');
-          px(W - xPad - 2, yStart, '#fef08a'); px(W - xPad - 4, yStart, '#fef08a');
-        } else if (vp.lights === 'round_2') {
-          rect(xPad + 1, yStart, 2, 1, '#fef08a');
-          rect(W - xPad - 3, yStart, 2, 1, '#fef08a');
-        } else if (vp.lights === 'sleek_led' || vp.lights === 'angular_led') {
-          rect(xPad + 1, yStart, 3, 1, '#e0f2fe');
-          rect(W - xPad - 4, yStart, 3, 1, '#e0f2fe');
-          px(xPad + 1, yStart + 1, '#fef08a');
-          px(W - xPad - 2, yStart + 1, '#fef08a');
-        } else {
-          rect(xPad + 1, yStart, 3, 2, '#fef08a');
-          rect(W - xPad - 4, yStart, 3, 2, '#fef08a');
-        }
-      }
-
-      // Taillights (z=5..6)
       if (z === 5 || z === 6) {
-        if (vp.rear === 'quad_round') {
-          rect(xPad + 1, yEnd - 1, bodyW - 2, 1, '#1e1b24');
-          px(xPad + 2, yEnd - 1, '#ff1e38'); px(xPad + 4, yEnd - 1, '#ff1e38');
-          px(W - xPad - 3, yEnd - 1, '#ff1e38'); px(W - xPad - 5, yEnd - 1, '#ff1e38');
-        } else if (vp.rear === 'led_bar') {
-          rect(xPad + 1, yEnd - 1, bodyW - 2, 1, '#ff1e38');
+        // Front lamps: geometry changes with make and generation.
+        const ly = yStart;
+        if (style.lights === 'round_4') {
+          px(xPad + 1, ly, '#fef08a'); px(xPad + 3, ly, '#fef08a');
+          px(W - xPad - 2, ly, '#fef08a'); px(W - xPad - 4, ly, '#fef08a');
+        } else if (style.lights === 'round_2') {
+          rect(xPad + 1, ly, 2, 1, '#fef08a'); rect(W - xPad - 3, ly, 2, 1, '#fef08a');
+        } else if (style.lights === 'boomerang_led') {
+          px(xPad + 1, ly, '#e0f2fe'); px(xPad + 2, ly + 1, '#fef08a');
+          px(W - xPad - 2, ly, '#e0f2fe'); px(W - xPad - 3, ly + 1, '#fef08a');
+        } else if (style.lights === 'vertical_led' || style.lights === 'thor_led') {
+          rect(xPad + 1, ly, 1, 3, '#e0f2fe'); rect(W - xPad - 2, ly, 1, 3, '#e0f2fe');
+        } else if (style.lights === 'matrix_led') {
+          rect(xPad + 1, ly, 3, 1, '#e0f2fe'); rect(W - xPad - 4, ly, 3, 1, '#e0f2fe');
+          px(xPad + 2, ly + 1, '#fef08a'); px(W - xPad - 3, ly + 1, '#fef08a');
+        } else if (style.lights === 'slim_led' || style.lights === 'angular_led') {
+          rect(xPad + 1, ly, 3, 1, '#e0f2fe'); rect(W - xPad - 4, ly, 3, 1, '#e0f2fe');
         } else {
-          rect(xPad + 1, yEnd - 1, 3, 1, '#ff1e38');
-          rect(W - xPad - 4, yEnd - 1, 3, 1, '#ff1e38');
+          rect(xPad + 1, ly, 3, 2, '#fef08a'); rect(W - xPad - 4, ly, 3, 2, '#fef08a');
+        }
+
+        // Rear signature: full-width light bars, classic pairs or vertical lamps.
+        const ry = yEnd - 1;
+        if (style.rear === 'quad_round') {
+          px(xPad + 2, ry, '#ff1e38'); px(xPad + 4, ry, '#ff1e38');
+          px(W - xPad - 3, ry, '#ff1e38'); px(W - xPad - 5, ry, '#ff1e38');
+        } else if (style.rear === 'led_bar' || style.rear === 'wraparound') {
+          rect(xPad + 1, ry, bodyW - 2, 1, '#ff1e38');
+          if (style.rear === 'wraparound') { px(xPad, ry - 1, '#ff1e38'); px(W - xPad - 1, ry - 1, '#ff1e38'); }
+        } else if (style.rear === 'vertical') {
+          rect(xPad + 1, ry - 2, 1, 3, '#ff1e38'); rect(W - xPad - 2, ry - 2, 1, 3, '#ff1e38');
+        } else if (style.rear === 'l_shape' || style.rear === 'c_shape' || style.rear === 'boomerang' || style.rear === 'angular_red') {
+          rect(xPad + 1, ry - 1, 1, 2, '#ff1e38'); rect(W - xPad - 2, ry - 1, 1, 2, '#ff1e38');
+          px(xPad + 2, ry, '#ff1e38'); px(W - xPad - 3, ry, '#ff1e38');
+        } else {
+          rect(xPad + 1, ry, 3, 1, '#ff1e38'); rect(W - xPad - 4, ry, 3, 1, '#ff1e38');
         }
       }
 
-      // Engine cover details on slice 7
-      if (z === 7 && shape === 'ferrari_f40') {
-        rect(5, yEnd - 11, W - 10, 7, '#1e293b');
-        rect(6, yEnd - 10, W - 12, 1, '#991b1b');
-        rect(6, yEnd - 8, W - 12, 1, '#991b1b');
-        rect(6, yEnd - 6, W - 12, 1, '#991b1b');
-      } else if (z === 7 && (shape === 'ferrari_488' || shape === 'lambo_wedge')) {
-        rect(6, yEnd - 11, W - 12, 6, '#1e293b');
+      if (z === 5 || z === 6) {
+        // Bonnet creases and model-specific hood volume.
+        const hoodEnd = yStart + Math.max(4, Math.round(bodyH * 0.22));
+        px(xPad + 2, hoodEnd, pal.light); px(W - xPad - 3, hoodEnd, pal.light);
+        if (style.isSuper) {
+          rect(xPad + 3, yStart + 4, 1, 5, pal.dark);
+          rect(W - xPad - 4, yStart + 4, 1, 5, pal.dark);
+        }
+        if (style.isEV && z === 6) rect(xPad + 3, yStart + 3, bodyW - 6, 1, pal.light);
       }
 
-      // Wing uprights
+      if (hasStripe) rect(Math.floor(W / 2) - 1, yStart + 1, 2, bodyH - 2, '#f8fafc');
+
+      // Pickup bed is visually separate from the cabin.
+      if (style.isPickup && z >= 5) {
+        const bedY = yStart + Math.round(bodyH * 0.54);
+        rect(xPad + 2, bedY, bodyW - 4, yEnd - bedY - 2, z === 5 ? '#334155' : '#1e293b');
+        rect(xPad + 1, bedY, 1, yEnd - bedY - 2, pal.light);
+        rect(W - xPad - 2, bedY, 1, yEnd - bedY - 2, pal.light);
+        rect(xPad + 2, yEnd - 2, bodyW - 4, 1, pal.dark);
+      }
+
+      // Door seams, mirrors and side character lines.
+      if (z === 6 || z === 7) {
+        const doorY = yStart + Math.round(bodyH * 0.54);
+        rect(xPad + 1, doorY, 1, 4, pal.dark);
+        rect(W - xPad - 2, doorY, 1, 4, pal.dark);
+        px(xPad - 1, yStart + 7, pal.light); px(W - xPad, yStart + 7, pal.light);
+      }
+
       if (hasWing && z === 7) {
-        rect(xPad + 1, yEnd - 4, 2, 3, pal.main);
-        rect(W - xPad - 3, yEnd - 4, 2, 3, pal.main);
+        rect(xPad, yEnd - 4, bodyW, 2, pal.light);
+        rect(xPad + 1, yEnd - 4, bodyW - 2, 1, pal.dark);
       }
     }
 
-    // Slices 8-10: Greenhouse / Cabin / Windshield / Wing
+    // Layer 8-10: windshield, side windows, rear glass and roof signature.
     else if (z <= 10) {
-      if (isPickup) {
-        // Only front cab rises
-        const cabTop = yStart + 2 + (z - 8);
-        const cabH = 9 - (z - 8);
-        rect(xPad + 1, cabTop, bodyW - 2, cabH, z === 8 ? pal.main : pal.light);
-        rect(xPad + 2, cabTop, bodyW - 4, 3, '#475569');
-      } else if (isVan) {
-        // Tall microvan cabin spanning almost entire length
-        const inset = z === 8 ? 0 : 1;
-        rect(xPad + inset, yStart + 1, bodyW - inset * 2, bodyH - 2, z === 8 ? pal.main : pal.light);
-        rect(xPad + inset + 1, yStart + 1, bodyW - (inset + 1) * 2, 3, '#475569');
-        rect(xPad + inset, yStart + 5, 1, bodyH - 8, '#1e293b');
-        rect(W - xPad - inset - 1, yStart + 5, 1, bodyH - 8, '#1e293b');
-      } else {
-        const topOff = isSUV || isMicro ? (z - 7) + 4 : (z - 7) * 2 + 4;
-        const botOff = isSUV || isMicro ? (z - 7) + 2 : (z - 7) + 5;
-        const insetX = z === 8 ? xPad + 1 : xPad + 2;
-        const ghW = W - insetX * 2;
-        const ghH = Math.max(4, yEnd - botOff - (yStart + topOff));
-        rect(insetX, yStart + topOff, ghW, ghH, z === 8 ? pal.main : pal.light);
-
-        // Windshield + glass shine
-        const glassCol = z === 8 ? '#334155' : (z === 9 ? '#475569' : '#64748b');
-        rect(insetX + 1, yStart + topOff, ghW - 2, 4, glassCol);
-        px(insetX + 2, yStart + topOff + 1, '#94a3b8');
-        // Side & rear windows
-        rect(insetX, yStart + topOff + 3, 1, Math.max(1, ghH - 6), '#1e293b');
-        rect(W - insetX - 1, yStart + topOff + 3, 1, Math.max(1, ghH - 6), '#1e293b');
-        rect(insetX + 1, yStart + topOff + ghH - 3, ghW - 2, 3, '#1e293b');
-
-        if (hasStripe && z === 8) {
-          rect(7, yStart + topOff, 4, ghH, '#f8fafc');
-          rect(insetX + 1, yStart + topOff, ghW - 2, 3, glassCol);
+      const cabStart = yStart + Math.round(bodyH * style.cabinFront);
+      const cabEnd = yStart + Math.round(bodyH * style.cabinRear);
+      const cabW = Math.max(6, Math.min(bodyW - 2, Math.round(bodyW * style.cabinWidth)));
+      const cabPad = Math.floor((bodyW - cabW) / 2);
+      const cabX = xPad + cabPad;
+      const glass = z === 8 ? '#263447' : (z === 9 ? '#33485f' : '#475d73');
+      const shell = z === 8 ? pal.main : (z === 9 ? pal.light : pal.main);
+      rect(cabX, cabStart, cabW, cabEnd - cabStart, shell);
+      rect(cabX + 1, cabStart + 1, Math.max(2, cabW - 2), 2, glass);
+      rect(cabX + 1, cabEnd - 3, Math.max(2, cabW - 2), 2, '#1e293b');
+      if (!style.isVan && !style.isPickup) {
+        rect(cabX, cabStart + 4, 1, Math.max(1, cabEnd - cabStart - 8), '#0f172a');
+        rect(cabX + cabW - 1, cabStart + 4, 1, Math.max(1, cabEnd - cabStart - 8), '#0f172a');
+        if (z >= 9) {
+          rect(cabX + 2, cabStart + 4, 1, Math.max(1, cabEnd - cabStart - 8), '#64748b');
+          rect(cabX + cabW - 3, cabStart + 4, 1, Math.max(1, cabEnd - cabStart - 8), '#64748b');
+        }
+      } else if (style.isVan) {
+        for (let wi = 0; wi < 3; wi++) {
+          const wy = cabStart + 5 + wi * 5;
+          if (wy < cabEnd - 3) {
+            rect(cabX, wy, cabW, 2, '#334155');
+            rect(cabX, wy + 1, 1, 1, '#94a3b8');
+          }
         }
       }
 
-      if (hasWing && !isVan && !isPickup) {
-        if (z <= 9) {
-          rect(xPad + 1, yEnd - 4, 2, 3, pal.main);
-          rect(W - xPad - 3, yEnd - 4, 2, 3, pal.main);
+      if (z === 10) {
+        const roofInset = style.roofStyle === 'fastback' ? 2 : 1;
+        rect(cabX + roofInset, cabStart + 5, Math.max(3, cabW - roofInset * 2), Math.max(3, cabEnd - cabStart - 10), style.roofStyle === 'panoramic' ? '#253b50' : pal.main);
+        if (style.roofStyle === 'panoramic') {
+          rect(cabX + 2, cabStart + 6, Math.max(2, cabW - 4), Math.max(2, cabEnd - cabStart - 12), '#263e55');
+          px(cabX + 2, cabStart + 6, '#94a3b8');
         } else {
-          rect(xPad, yEnd - 4, bodyW, 3, pal.light);
-          rect(xPad, yEnd - 4, bodyW, 1, pal.dark);
+          rect(cabX + 2, cabStart + 6, Math.max(2, cabW - 4), 1, '#64748b');
         }
       }
+      if (hasWing && z === 10) rect(xPad, cabEnd - 1, bodyW, 1, pal.light);
     }
 
-    // Slices 11-14: Roof crown
+    // Layer 11-14: raised roof crown, panoramic panel, rails and rear aero.
     else {
       const step = z - 11;
-      if (isPickup) {
-        if (step <= 2) {
-          rect(xPad + 2, yStart + 4 + step, bodyW - 4, Math.max(2, 6 - step), pal.light);
-        }
-      } else if (isVan) {
-        const inset = step >= 2 ? 2 : 1;
-        rect(xPad + inset, yStart + 2 + step, bodyW - inset * 2, Math.max(4, bodyH - 4 - step * 2), step >= 2 ? pal.light : pal.main);
-      } else if (isSuper && step === 3) {
-        // Low sleek supercars stop slightly lower than tall SUVs!
-        rect(6, yStart + 13, 6, 4, pal.light);
+      const cabStart = yStart + Math.round(bodyH * style.cabinFront);
+      const cabEnd = yStart + Math.round(bodyH * style.cabinRear);
+      if (style.isPickup) {
+        // Pickup roof only rises above its short front cab.
+        const inset = 2 + Math.min(2, step);
+        rect(xPad + inset, cabStart + 1 + step, Math.max(3, bodyW - inset * 2), Math.max(2, cabEnd - cabStart - 3 - step), step >= 2 ? pal.light : pal.main);
       } else {
-        const insetX = step >= 2 ? xPad + 3 : xPad + 2;
-        const rTop = yStart + (isSUV || isMicro ? 7 : 10) + step;
-        const rBot = yEnd - (isSUV || isMicro ? 4 : 8) - step;
-        const rH = Math.max(2, rBot - rTop);
-        const rW = Math.max(4, W - insetX * 2);
-        rect(insetX, rTop, rW, rH, step >= 2 ? pal.light : pal.main);
-
-        if (step === 0) {
-          rect(insetX + 1, rTop, rW - 2, 2, '#475569');
-        }
-        if (hasStripe) {
-          rect(7, rTop, 4, rH, '#ffffff');
-        }
-        if ((shape === 'malibu' || shape === 'suv') && step === 2) {
-          rect(6, rTop + 1, W - 12, Math.max(2, rH - 3), '#1e293b');
-        }
-        if (hasWing && step === 0) {
-          rect(xPad, yEnd - 4, bodyW, 2, pal.light);
+        const inset = (style.isVan ? 1 : 2) + (step >= 2 ? 1 : 0);
+        const roofTop = cabStart + (style.roofStyle === 'fastback' ? 3 : 2) + step;
+        const roofBottom = cabEnd - 2 - step;
+        if (roofBottom > roofTop) {
+          rect(xPad + inset, roofTop, Math.max(3, bodyW - inset * 2), roofBottom - roofTop, step >= 2 ? pal.light : pal.main);
+          if (step === 0) {
+            rect(xPad + inset + 1, roofTop + 1, Math.max(2, bodyW - inset * 2 - 2), 2, '#334155');
+          }
+          if (style.roofStyle === 'panoramic' && step <= 1) {
+            rect(xPad + inset + 2, roofTop + 3, Math.max(2, bodyW - inset * 2 - 4), Math.max(2, roofBottom - roofTop - 6), '#1e3a50');
+          }
         }
       }
-    }
 
+      if (style.roofRails && step <= 2) {
+        rect(xPad + 1, yStart + 8 + step, 1, Math.max(5, bodyH - 17), '#94a3b8');
+        rect(W - xPad - 2, yStart + 8 + step, 1, Math.max(5, bodyH - 17), '#94a3b8');
+      }
+      if (style.isSuper && step === 3) {
+        rect(xPad + 4, yEnd - 11, Math.max(3, bodyW - 8), 3, '#1e293b');
+      }
+      if (hasWing && step === 0) rect(xPad, yEnd - 4, bodyW, 2, pal.light);
+    }
     slices.push(c);
   }
 
