@@ -404,18 +404,18 @@
         <!-- TAB 4: MULTIPLAYER (REAL WEBSOCKET LAN / ONLINE) -->
         <div class="tab-pane" id="pane-multiplayer">
           <div class="warn-box" id="mp-env-notice">
-            <b>Haqiqiy WebSocket Multiplayer (4 o'yinchi):</b> Mahalliy Wi-Fi (LAN) yoki Onlayn poyga uchun loyiha arxividagi <code>node server/index.js</code> serverini ishga tushiring va quyidagi server manziliga ulaning. Botlar hech qachon haqiqiy odam o'rnida ko'rsatilmaydi.
+            <b>Onlayn multiplayer tayyor:</b> Serverga avtomatik ulanadi. Xona yarating yoki do'stingiz yuborgan xona kodini kiriting. Mahalliy Wi-Fi orqali o'ynash uchun LAN rejimini tanlang. Botlar hech qachon haqiqiy odam o'rnida ko'rsatilmaydi.
           </div>
           <div class="grid-2">
             <div class="box">
               <div class="box-title"><span>Serverga ulanish & Xonalar</span><span id="mp-conn-status" style="color:#f87171">● Ulanmagan</span></div>
               <div style="display:flex;gap:6px;margin-bottom:8px;">
-                <input class="field-input" id="mp-server-url" placeholder="ws://localhost:3000" style="flex:1;">
-                <button class="btn-secondary" id="btn-mp-connect">Ulanish</button>
+                <input class="field-input" id="mp-server-url" placeholder="wss://spritestack-poyga-server-lb2i.onrender.com" style="flex:1;">
+                <button class="btn-secondary" id="btn-mp-connect">Qayta ulanish</button>
               </div>
               <div class="chip-row">
-                <button class="chip active" id="mp-scope-lan">📶 Mahalliy Wi-Fi (LAN)</button>
-                <button class="chip" id="mp-scope-online">🌍 Onlayn (Internet)</button>
+                <button class="chip" id="mp-scope-lan">📶 Mahalliy Wi-Fi (LAN)</button>
+                <button class="chip active" id="mp-scope-online">🌍 Onlayn (Internet)</button>
                 <button class="chip" id="btn-mp-refresh">↻ Yangilash</button>
                 <button class="chip" id="btn-mp-random">🎲 Tasodifiy kirish</button>
               </div>
@@ -3721,6 +3721,8 @@ const pctx = previewCanvas.getContext('2d');
 
 const keys = { up: false, down: false, left: false, right: false, drift: false, nitro: false };
 
+const DEFAULT_MULTIPLAYER_SERVER = 'wss://spritestack-poyga-server-lb2i.onrender.com';
+
 const state = {
   mode: 'menu', // menu | countdown | racing | paused | finished
   activeTab: 'race',
@@ -3748,7 +3750,7 @@ const state = {
   mp: {
     ws: null,
     connected: false,
-    scope: 'lan',
+    scope: 'online',
     rooms: [],
     lobby: null,
     remoteStates: new Map(),
@@ -4567,7 +4569,15 @@ function switchTab(tabId) {
   if (tabId === 'race') renderTracksTab();
   else if (tabId === 'garage') renderGarageTab();
   else if (tabId === 'compare') renderCompareTab();
-  else if (tabId === 'multiplayer') { renderMpRoomList(); renderMpLobby(); }
+  else if (tabId === 'multiplayer') {
+    renderMpRoomList();
+    renderMpLobby();
+    const socketState = state.mp.ws ? state.mp.ws.readyState : WebSocket.CLOSED;
+    if (socketState !== WebSocket.OPEN && socketState !== WebSocket.CONNECTING) {
+      const serverInput = document.getElementById('mp-server-url');
+      connectMultiplayer(serverInput.value || DEFAULT_MULTIPLAYER_SERVER);
+    }
+  }
   else if (tabId === 'profile') renderProfileTab();
 }
 
@@ -5192,10 +5202,11 @@ function initUI() {
     if (state.mp.connected) mpSend({ type: 'emote', emoteId: b.dataset.em });
   }));
 
-  // Default server URL detection when served via HTTP
-  const defaultWs = window.location.protocol.startsWith('http') && window.location.host
-    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
-    : (profile.settings.serverUrl || 'ws://localhost:3000');
+  // Default public server. Keep a previously selected non-local custom server.
+  const savedServerUrl = profile.settings.serverUrl || '';
+  const defaultWs = savedServerUrl && !/(localhost|127\.0\.0\.1)/i.test(savedServerUrl)
+    ? savedServerUrl
+    : DEFAULT_MULTIPLAYER_SERVER;
   document.getElementById('mp-server-url').value = defaultWs;
   document.getElementById('mp-room-name').value = generateRoomName();
 

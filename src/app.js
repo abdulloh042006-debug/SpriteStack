@@ -239,6 +239,8 @@ const pctx = previewCanvas.getContext('2d');
 
 const keys = { up: false, down: false, left: false, right: false, drift: false, nitro: false };
 
+const DEFAULT_MULTIPLAYER_SERVER = 'wss://spritestack-poyga-server-lb2i.onrender.com';
+
 const state = {
   mode: 'menu', // menu | countdown | racing | paused | finished
   activeTab: 'race',
@@ -266,7 +268,7 @@ const state = {
   mp: {
     ws: null,
     connected: false,
-    scope: 'lan',
+    scope: 'online',
     rooms: [],
     lobby: null,
     remoteStates: new Map(),
@@ -1085,7 +1087,15 @@ function switchTab(tabId) {
   if (tabId === 'race') renderTracksTab();
   else if (tabId === 'garage') renderGarageTab();
   else if (tabId === 'compare') renderCompareTab();
-  else if (tabId === 'multiplayer') { renderMpRoomList(); renderMpLobby(); }
+  else if (tabId === 'multiplayer') {
+    renderMpRoomList();
+    renderMpLobby();
+    const socketState = state.mp.ws ? state.mp.ws.readyState : WebSocket.CLOSED;
+    if (socketState !== WebSocket.OPEN && socketState !== WebSocket.CONNECTING) {
+      const serverInput = document.getElementById('mp-server-url');
+      connectMultiplayer(serverInput.value || DEFAULT_MULTIPLAYER_SERVER);
+    }
+  }
   else if (tabId === 'profile') renderProfileTab();
 }
 
@@ -1710,10 +1720,11 @@ function initUI() {
     if (state.mp.connected) mpSend({ type: 'emote', emoteId: b.dataset.em });
   }));
 
-  // Default server URL detection when served via HTTP
-  const defaultWs = window.location.protocol.startsWith('http') && window.location.host
-    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
-    : (profile.settings.serverUrl || 'ws://localhost:3000');
+  // Default public server. Keep a previously selected non-local custom server.
+  const savedServerUrl = profile.settings.serverUrl || '';
+  const defaultWs = savedServerUrl && !/(localhost|127\.0\.0\.1)/i.test(savedServerUrl)
+    ? savedServerUrl
+    : DEFAULT_MULTIPLAYER_SERVER;
   document.getElementById('mp-server-url').value = defaultWs;
   document.getElementById('mp-room-name').value = generateRoomName();
 
