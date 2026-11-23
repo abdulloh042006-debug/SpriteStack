@@ -1328,31 +1328,149 @@ export function getCarClassFromPR(pr) {
   return 'S';
 }
 
-function inferVisualProfile(bodyStr, fuelStr, hp, cls) {
-  const b = (bodyStr || '').toLowerCase();
-  const f = (fuelStr || '').toLowerCase();
-  if (b.includes('van') || b.includes('mpv') || b.includes('minivan')) {
-    return { shape: 'microvan', grille: 'dark_quad', lights: 'rect_2', rear: 'classic_bar', wing: false, stripe: false, detail: 'standard' };
+function inferVisualProfile(bodyStr, fuelStr, hp, cls, modelStr = '', brandStr = '', generationStr = '', modStr = '', uniqueId = '') {
+  const body = String(bodyStr || '').toLowerCase();
+  const fuel = String(fuelStr || '').toLowerCase();
+  const model = String(modelStr || '').toLowerCase();
+  const brand = String(brandStr || '').toLowerCase();
+  const identity = [brand, model, generationStr, modStr, uniqueId].join(' ').toLowerCase();
+  const electric = /electric|bev|phev|hybrid|ev\b/.test(fuel + ' ' + identity);
+  const classic = /lada|vaz|avtovaz|moskvich|gaz\b|uaz|volga|zhiguli/.test(identity);
+  const isOffRoad = /niva|defender|wrangler|land cruiser|landcruiser|patrol|g.class|gelandewagen|bronco|uaz|pajero/.test(identity);
+  const isPickup = /pickup|pick-up|truck|labo|hilux|ranger|tacoma|navara|tundra|ram\b|f.150|s10\b/.test(body + ' ' + identity);
+  const isVan = /van|mpv|minivan|microbus|people carrier|minibus/.test(body + ' ' + identity);
+  const isSuv = /suv|crossover|off.?road|utility/.test(body) ||
+    /suv|crossover|jeep|highlander|tucson|sportage|sorento|rav4|cr.v|x5\b|x3\b|x7\b|gle\b|glc\b|gla\b|gls\b|q5\b|q7\b|q8\b|urus|purosangue|model x|model y|seal u|song|tang|tucson|santa fe/.test(identity);
+  const isWagon = /wagon|estate|touring|avant|variant|combi|sport.?tourer/.test(body + ' ' + identity);
+  const isConvertible = /convertible|cabrio|cabriolet|roadster|spyder|spider/.test(body + ' ' + identity);
+  const isCoupe = /coupe|gt.?r\b|supra|mustang|camaro|challenger|corvette|911|ferrari|lamborghini|huracan|aventador|mclaren|bugatti|aston martin|maserati|koenigsegg|amg gt|gr86|brz|mx.5|miata/.test(body + ' ' + identity);
+  const isHatch = /hatch|city car|compact/.test(body) ||
+    /golf|polo|gti|swift|fiesta|focus rs|mini cooper|corsa|clio|yaris|i20|i30|ceed|rio|matiz|spark|picanto|micra|leaf|zoe/.test(identity);
+
+  let shape = 'compact_sedan';
+  if (isPickup) shape = 'mini_pickup';
+  else if (isVan) shape = 'microvan';
+  else if (isOffRoad) shape = 'niva_4x4';
+  else if (isSuv) shape = 'suv';
+  else if (isWagon) shape = 'long_sedan';
+  else if (isConvertible || isCoupe) shape = 'gtr_coupe';
+  else if (isHatch) shape = 'micro_hatch';
+  else if (classic && /2101|2103|2105|2106|2107|moskvich|volga/.test(identity)) shape = 'boxy_sedan';
+  else if (/long|executive|luxury|limousine/.test(body + ' ' + identity)) shape = 'long_sedan';
+  else if (electric) shape = 'ev_sedan';
+
+  const brandRules = [
+    [/bmw|mini/, 'bmw'],
+    [/mercedes|benz|maybach/, 'mercedes'],
+    [/audi/, 'audi'],
+    [/lexus/, 'lexus'],
+    [/kia/, 'kia'],
+    [/hyundai|genesis/, 'hyundai'],
+    [/chevrolet|chevy|ravon|daewoo/, 'chevrolet'],
+    [/toyota/, 'toyota'],
+    [/honda|acura/, 'honda'],
+    [/nissan|infiniti/, 'nissan'],
+    [/ford|lincoln/, 'ford'],
+    [/volkswagen|\bvw\b|skoda/, 'volkswagen'],
+    [/porsche/, 'porsche'],
+    [/ferrari/, 'ferrari'],
+    [/lamborghini/, 'lamborghini'],
+    [/tesla|byd|xiaomi|rivian|nio|zeekr|polestar/, 'electric'],
+    [/mazda/, 'mazda'],
+    [/subaru/, 'subaru'],
+    [/volvo|polestar/, 'volvo']
+  ];
+  let brandStyle = 'generic';
+  for (const rule of brandRules) {
+    if (rule[0].test(brand)) { brandStyle = rule[1]; break; }
   }
-  if (b.includes('pickup') || b.includes('truck')) {
-    return { shape: 'mini_pickup', grille: 'dark_quad', lights: 'rect_2', rear: 'classic_bar', wing: false, stripe: false, detail: 'standard' };
+
+  let hash = 2166136261;
+  const seed = identity || body;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  if (b.includes('suv') || b.includes('crossover') || b.includes('off-road')) {
-    return { shape: 'suv', grille: 'wide_mesh', lights: 'angular_led', rear: 'led_bar', wing: false, stripe: false, detail: 'high' };
-  }
-  if (cls === 'S' || (hp && hp >= 560)) {
-    return { shape: 'ferrari_488', grille: 'super_intake', lights: 'angular_led', rear: 'led_bar', wing: true, stripe: false, detail: 'special' };
-  }
-  if (b.includes('coupe') || b.includes('roadster') || b.includes('cabrio') || b.includes('convertible') || cls === 'A') {
-    return { shape: 'gtr_coupe', grille: 'super_intake', lights: 'angular_led', rear: 'led_bar', wing: cls === 'A', stripe: false, detail: 'high' };
-  }
-  if (f.includes('electric') || f.includes('bev') || f.includes('phev')) {
-    return { shape: 'ev_sedan', grille: 'ev_clean', lights: 'angular_led', rear: 'led_bar', wing: false, stripe: false, detail: 'high' };
-  }
-  if (b.includes('hatch') || b.includes('city') || b.includes('mini')) {
-    return { shape: 'micro_hatch', grille: 'chevy_dual', lights: 'rect_2', rear: 'wide_red', wing: false, stripe: false, detail: 'standard' };
-  }
-  return { shape: 'compact_sedan', grille: 'chevy_dual', lights: 'rect_2', rear: 'wide_red', wing: false, stripe: false, detail: 'standard' };
+  hash >>>= 0;
+
+  const grilleByBrand = {
+    bmw: 'bmw_kidney', mercedes: 'mercedes_star', audi: 'audi_singleframe',
+    lexus: 'lexus_spindle', kia: 'kia_tiger', hyundai: 'hyundai_parametric',
+    chevrolet: 'chevy_dual', toyota: 'toyota_wide', honda: 'honda_wing',
+    nissan: 'nissan_vmotion', ford: 'ford_trapezoid', volkswagen: 'vw_horizontal',
+    porsche: 'porsche_oval', ferrari: 'ferrari_mesh', lamborghini: 'lambo_hex',
+    electric: 'ev_closed', mazda: 'mazda_wing', subaru: 'subaru_hex',
+    volvo: 'volvo_ironmark', generic: electric ? 'ev_closed' : 'wide_mesh'
+  };
+  const grille = classic
+    ? (/2106|2103/.test(identity) ? 'dark_quad' : 'chrome_slats')
+    : (grilleByBrand[brandStyle] || (electric ? 'ev_closed' : 'wide_mesh'));
+
+  const lightByBrand = {
+    bmw: 'matrix_led', mercedes: 'slim_led', audi: 'matrix_led',
+    lexus: 'angular_led', kia: 'boomerang_led', hyundai: 'slim_led',
+    chevrolet: 'rect_2', toyota: 'angular_led', honda: 'slim_led',
+    nissan: 'boomerang_led', ford: 'matrix_led', volkswagen: 'slim_led',
+    porsche: 'round_2', ferrari: 'slim_led', lamborghini: 'angular_led',
+    electric: 'slim_led', mazda: 'slim_led', subaru: 'angular_led',
+    volvo: 'thor_led', generic: 'rect_2'
+  };
+  const lights = classic
+    ? (/2106|2103/.test(identity) ? 'round_4' : 'round_2')
+    : (lightByBrand[brandStyle] || 'rect_2');
+
+  const rearByBrand = {
+    bmw: 'led_bar', mercedes: 'wraparound', audi: 'led_bar',
+    lexus: 'l_shape', kia: 'led_bar', hyundai: 'led_bar',
+    chevrolet: 'wide_red', toyota: 'wide_red', honda: 'c_shape',
+    nissan: 'boomerang', ford: 'wide_red', volkswagen: 'wide_red',
+    porsche: 'led_bar', ferrari: 'quad_round', lamborghini: 'angular_red',
+    electric: 'led_bar', mazda: 'wraparound', subaru: 'c_shape',
+    volvo: 'vertical', generic: 'wide_red'
+  };
+  const rear = classic ? 'classic_bar' : (rearByBrand[brandStyle] || 'wide_red');
+
+  const suvBase = isSuv || isOffRoad;
+  const coupeBase = isCoupe || isConvertible;
+  const hatchBase = isHatch;
+  const vanBase = isVan;
+  const pickupBase = isPickup;
+  const bodyWidth = (suvBase ? 16 : coupeBase ? 16 : vanBase || pickupBase ? 14 : hatchBase ? 14 : 14) +
+    ((((hash >>> 3) % 3) - 1) * 2);
+  const frontTaper = classic || isOffRoad || vanBase || pickupBase ? 0.25 :
+    (coupeBase ? 2.5 : hatchBase ? 1.7 : suvBase ? 0.8 : 1.2) + (((hash >>> 8) % 3) * 0.25);
+  const rearTaper = classic || vanBase || pickupBase ? 0.25 :
+    (coupeBase ? 1.8 : hatchBase ? 2.0 : suvBase ? 0.7 : isWagon ? 0.9 : 1.35) + (((hash >>> 11) % 3) * 0.25);
+  const cabinFront = pickupBase ? 0.14 : vanBase ? 0.08 : coupeBase ? 0.30 : hatchBase ? 0.24 : 0.25;
+  const cabinRear = pickupBase ? 0.50 : vanBase ? 0.90 : suvBase ? 0.77 : coupeBase ? 0.70 : isWagon ? 0.82 : 0.76;
+  const cabinWidth = vanBase ? 0.78 : suvBase ? 0.72 : coupeBase ? 0.58 : hatchBase ? 0.66 : 0.64;
+
+  return {
+    shape, grille, lights, rear,
+    wing: (coupeBase && (cls === 'A' || cls === 'S' || hp >= 420)) || /gt.?wing|spoiler/.test(model),
+    stripe: false,
+    detail: cls === 'S' ? 'special' : (cls === 'A' || hp >= 350 ? 'high' : 'standard'),
+    signature: brandStyle,
+    modelHash: hash,
+    bodyWidth: Math.max(12, Math.min(16, bodyWidth)),
+    frontTaper: Math.max(0, Math.min(2.8, frontTaper)),
+    rearTaper: Math.max(0, Math.min(2.6, rearTaper)),
+    cabinFront,
+    cabinRear,
+    cabinWidth,
+    frontAxle: pickupBase ? 0.25 : 0.24 + ((hash >>> 15) % 3) * 0.01,
+    rearAxle: pickupBase ? 0.76 : 0.75 + ((hash >>> 18) % 3) * 0.01,
+    wheelLength: suvBase ? 6 : coupeBase ? 4 : 5,
+    roofStyle: vanBase ? 'flat' : coupeBase ? 'fastback' : (electric ? 'panoramic' : 'standard'),
+    roofRails: suvBase && ((hash >>> 22) % 2 === 0),
+    electric,
+    isWagon,
+    isConvertible,
+    isPickup: pickupBase,
+    isVan: vanBase,
+    isSUV: suvBase,
+    isCoupe: coupeBase
+  };
 }
 
 function classToMinLevel(cls) {
@@ -1407,7 +1525,7 @@ function mapWorldRowToVehicle(r, tables) {
     basePR,
     maxPR,
     defaultColor,
-    visualProfile: inferVisualProfile(body, fuel, hp, cls),
+    visualProfile: inferVisualProfile(body, fuel, hp, cls, model, brand, gen, mod, id),
     price,
     minLevel: classToMinLevel(cls),
     gameStats: {
